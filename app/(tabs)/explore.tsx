@@ -373,13 +373,14 @@ function UserItem({ user }: { user: User }) {
       return;
     }
     
+    const previousState = isFollowing;
     try {
       setIsFollowing(!isFollowing);
       await followMutation.mutateAsync(user.id);
       console.log('[Explore] Follow mutation successful');
     } catch (error) {
       console.error('[Explore] Follow mutation failed:', error);
-      setIsFollowing(isFollowing);
+      setIsFollowing(previousState);
     }
   };
 
@@ -617,7 +618,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as 'center',
   },
   fullscreenVideo: {
-    width: width,
+    width: '100%',
     height: '100%',
   },
   closeButton: {

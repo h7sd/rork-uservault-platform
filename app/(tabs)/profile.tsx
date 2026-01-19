@@ -298,7 +298,8 @@ export default function ProfileScreen() {
       initialUserIdRef.current = currentUser.id;
       console.log('[Profile] Stored initial user ID:', currentUser.id);
     }
-  }, [currentUser?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   const displayUser = useMemo(() => {
     if (!currentUser) return null;
