@@ -38,7 +38,7 @@ function PostItem({ post }: { post: Post }) {
   const username = user.username || 'unknown';
   const displayName = user.first_name && user.last_name 
     ? `${user.first_name} ${user.last_name}` 
-    : username;
+    : user.first_name || user.last_name || username;
   let avatar = user.avatar_url || `https://i.pravatar.cc/150?u=${post.id}`;
   if (avatar && !avatar.startsWith('http://') && !avatar.startsWith('https://')) {
     avatar = `https://uservault.net${avatar.startsWith('/') ? '' : '/'}${avatar}`;
@@ -80,8 +80,11 @@ function PostItem({ post }: { post: Post }) {
   };
 
   const postMedia = post.relations.media && post.relations.media.length > 0 ? post.relations.media[0] : null;
-  const isVideo = postMedia?.type === 'VIDEO';
-  const postImage = postMedia?.source_url || postMedia?.thumbnail_url;
+  const isVideo = postMedia?.type?.toUpperCase() === 'VIDEO';
+  let postImage = postMedia?.source_url || postMedia?.thumbnail_url;
+  if (postImage && !postImage.startsWith('http://') && !postImage.startsWith('https://')) {
+    postImage = `https://uservault.net${postImage.startsWith('/') ? '' : '/'}${postImage}`;
+  }
 
   const handleVideoPress = React.useCallback(async () => {
     if (!videoRef.current) return;
@@ -129,44 +132,46 @@ function PostItem({ post }: { post: Post }) {
 
       <Text style={styles.postContent}>{post.content}</Text>
 
-      {postMedia && isVideo ? (
-        <View style={styles.videoContainer}>
-          <Video
-            ref={videoRef}
-            source={{ uri: postMedia.source_url }}
-            style={styles.postImage}
-            resizeMode={ResizeMode.COVER}
-            isLooping
-            shouldPlay={false}
-            onPlaybackStatusUpdate={(status) => {
-              if (status.isLoaded) {
-                setIsVideoPlaying(status.isPlaying);
-              }
-            }}
-          />
-          {!isVideoPlaying && (
+      {postMedia && postImage ? (
+        isVideo ? (
+          <View style={styles.videoContainer}>
+            <Video
+              ref={videoRef}
+              source={{ uri: postMedia.source_url }}
+              style={styles.postImage}
+              resizeMode={ResizeMode.COVER}
+              isLooping
+              shouldPlay={false}
+              onPlaybackStatusUpdate={(status) => {
+                if (status.isLoaded) {
+                  setIsVideoPlaying(status.isPlaying);
+                }
+              }}
+            />
+            {!isVideoPlaying && (
+              <TouchableOpacity 
+                style={styles.videoPlayButton} 
+                onPress={handleVideoPress}
+                activeOpacity={0.9}
+              >
+                <View style={styles.playButtonCircle}>
+                  <Play color={colors.dark.text} size={32} fill={colors.dark.text} />
+                </View>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity 
-              style={styles.videoPlayButton} 
+              style={styles.videoTouchArea} 
               onPress={handleVideoPress}
-              activeOpacity={0.9}
-            >
-              <View style={styles.playButtonCircle}>
-                <Play color={colors.dark.text} size={32} fill={colors.dark.text} />
-              </View>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity 
-            style={styles.videoTouchArea} 
-            onPress={handleVideoPress}
-            activeOpacity={1}
+              activeOpacity={1}
+            />
+          </View>
+        ) : (
+          <Image 
+            source={{ uri: postImage }} 
+            style={styles.postImage}
+            resizeMode="cover"
           />
-        </View>
-      ) : postImage ? (
-        <Image 
-          source={{ uri: postImage }} 
-          style={styles.postImage}
-          resizeMode="cover"
-        />
+        )
       ) : null}
 
       <View style={styles.postFooter}>
