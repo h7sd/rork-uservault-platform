@@ -80,11 +80,25 @@ function PostItem({ post }: { post: Post }) {
   };
 
   const postMedia = post.relations.media && post.relations.media.length > 0 ? post.relations.media[0] : null;
-  const isVideo = postMedia?.type?.toUpperCase() === 'VIDEO';
-  let postImage = postMedia?.source_url || postMedia?.thumbnail_url;
-  if (postImage && !postImage.startsWith('http://') && !postImage.startsWith('https://')) {
-    postImage = `https://uservault.net${postImage.startsWith('/') ? '' : '/'}${postImage}`;
-  }
+  const mediaType = postMedia?.type?.toUpperCase();
+  const isVideo = mediaType === 'VIDEO';
+  
+  const normalizeUrl = (url: any): string | null => {
+    if (!url || typeof url !== 'string' || url.length === 0) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `https://uservault.net${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+  
+  let mediaUrl = normalizeUrl(postMedia?.source_url);
+  let thumbnailUrl = normalizeUrl(postMedia?.thumbnail_url);
+  
+  const postImage = isVideo ? (thumbnailUrl || mediaUrl) : mediaUrl;
+  const videoUrl = isVideo ? mediaUrl : null;
+  
+  console.log('[Explore] Post:', post.id, 'mediaType:', mediaType, 'isVideo:', isVideo);
+  console.log('[Explore] Post:', post.id, 'mediaUrl:', mediaUrl);
+  console.log('[Explore] Post:', post.id, 'thumbnailUrl:', thumbnailUrl);
+  console.log('[Explore] Post:', post.id, 'finalImage:', postImage, 'finalVideo:', videoUrl);
 
   const handleVideoPress = React.useCallback(async () => {
     if (!videoRef.current) return;
@@ -132,46 +146,50 @@ function PostItem({ post }: { post: Post }) {
 
       <Text style={styles.postContent}>{post.content}</Text>
 
-      {postMedia && postImage ? (
-        isVideo ? (
-          <View style={styles.videoContainer}>
-            <Video
-              ref={videoRef}
-              source={{ uri: postMedia.source_url }}
-              style={styles.postImage}
-              resizeMode={ResizeMode.COVER}
-              isLooping
-              shouldPlay={false}
-              onPlaybackStatusUpdate={(status) => {
-                if (status.isLoaded) {
-                  setIsVideoPlaying(status.isPlaying);
-                }
-              }}
-            />
-            {!isVideoPlaying && (
-              <TouchableOpacity 
-                style={styles.videoPlayButton} 
-                onPress={handleVideoPress}
-                activeOpacity={0.9}
-              >
-                <View style={styles.playButtonCircle}>
-                  <Play color={colors.dark.text} size={32} fill={colors.dark.text} />
-                </View>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity 
-              style={styles.videoTouchArea} 
-              onPress={handleVideoPress}
-              activeOpacity={1}
-            />
-          </View>
-        ) : (
-          <Image 
-            source={{ uri: postImage }} 
+      {postMedia && isVideo && videoUrl ? (
+        <TouchableOpacity 
+          style={styles.videoContainer}
+          onPress={handleVideoPress}
+          activeOpacity={0.95}
+        >
+          <Video
+            ref={videoRef}
+            source={{ uri: videoUrl }}
             style={styles.postImage}
-            resizeMode="cover"
+            resizeMode={ResizeMode.COVER}
+            isLooping
+            shouldPlay={false}
+            useNativeControls={false}
+            onPlaybackStatusUpdate={(status) => {
+              if (status.isLoaded) {
+                setIsVideoPlaying(status.isPlaying);
+              }
+            }}
+            onError={(error) => {
+              console.error('[Explore] Video load error:', error);
+            }}
           />
-        )
+          {!isVideoPlaying && (
+            <View style={styles.videoPlayButton}>
+              <View style={styles.playButtonCircle}>
+                <Play color={colors.dark.text} size={32} fill={colors.dark.text} />
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+      ) : postImage ? (
+        <Image 
+          source={{ uri: postImage }} 
+          style={styles.postImage}
+          resizeMode="cover"
+          onError={(error) => {
+            console.error('[Explore] Image load error for post', post.id, ':', error.nativeEvent.error);
+            console.error('[Explore] Failed image URL:', postImage);
+          }}
+          onLoad={() => {
+            console.log('[Explore] Image loaded successfully for post', post.id);
+          }}
+        />
       ) : null}
 
       <View style={styles.postFooter}>
@@ -330,11 +348,29 @@ function UserItem({ user }: { user: User }) {
   const followMutation = useFollowUser();
   const [isFollowing, setIsFollowing] = useState(false);
 
-  const avatar = user.avatar || `https://i.pravatar.cc/150?u=${user.id}`;
+  let avatar = user.avatar || `https://i.pravatar.cc/150?u=${user.id}`;
+  if (avatar && !avatar.startsWith('http://') && !avatar.startsWith('https://')) {
+    avatar = `https://uservault.net${avatar.startsWith('/') ? '' : '/'}${avatar}`;
+  }
 
-  const handleFollow = () => {
-    followMutation.mutate(user.id);
-    setIsFollowing(!isFollowing);
+  const handleFollow = async () => {
+    console.log('[Explore] Follow button pressed for user:', user.id);
+    console.log('[Explore] User ID type:', typeof user.id);
+    console.log('[Explore] Current isFollowing state:', isFollowing);
+    
+    if (!user.id || typeof user.id !== 'number') {
+      console.error('[Explore] Invalid user ID:', user.id);
+      return;
+    }
+    
+    try {
+      setIsFollowing(!isFollowing);
+      await followMutation.mutateAsync(user.id);
+      console.log('[Explore] Follow mutation successful');
+    } catch (error) {
+      console.error('[Explore] Follow mutation failed:', error);
+      setIsFollowing(isFollowing);
+    }
   };
 
   return (
@@ -564,14 +600,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.dark.text,
   },
-  videoTouchArea: {
-    position: 'absolute' as 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1,
-  },
+
   postFooter: {
     paddingHorizontal: 16,
     marginTop: 12,
