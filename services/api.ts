@@ -929,8 +929,9 @@ class ApiService {
       method: 'GET',
       credentials: 'include',
       headers: {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
       },
     });
 
@@ -940,74 +941,64 @@ class ApiService {
       throw new Error('Failed to load signup page');
     }
 
-    let xsrfToken = '';
-    
-    const setCookieHeader = signupResponse.headers.get('set-cookie');
-    console.log('[API] Set-Cookie header present:', !!setCookieHeader);
-    
-    if (setCookieHeader) {
-      const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/);
-      if (xsrfMatch && xsrfMatch[1]) {
-        try {
-          xsrfToken = decodeURIComponent(xsrfMatch[1]);
-          console.log('[API] Found XSRF token from Set-Cookie header');
-        } catch {
-          console.log('[API] Failed to decode XSRF token from cookie');
-        }
-      }
-    }
-
     const signupHtml = await signupResponse.text();
     console.log('[API] Signup page loaded, length:', signupHtml.length);
 
-    if (!xsrfToken) {
-      const csrfMetaMatch = signupHtml.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
-      if (csrfMetaMatch && csrfMetaMatch[1]) {
-        xsrfToken = csrfMetaMatch[1];
-        console.log('[API] Found CSRF token from meta tag');
+    let csrfToken = '';
+    
+    const csrfMetaMatch = signupHtml.match(/<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/);
+    if (csrfMetaMatch && csrfMetaMatch[1]) {
+      csrfToken = csrfMetaMatch[1];
+      console.log('[API] Found CSRF token from meta tag, length:', csrfToken.length);
+    }
+
+    if (!csrfToken) {
+      const altMetaMatch = signupHtml.match(/content=["']([^"']+)["']\s+name=["']csrf-token["']/);
+      if (altMetaMatch && altMetaMatch[1]) {
+        csrfToken = altMetaMatch[1];
+        console.log('[API] Found CSRF token from alt meta tag');
       }
     }
 
-    if (!xsrfToken) {
-      const tokenInputMatch = signupHtml.match(/<input[^>]*name="_token"[^>]*value="([^"]+)"/);
+    if (!csrfToken) {
+      const tokenInputMatch = signupHtml.match(/<input[^>]*name=["']_token["'][^>]*value=["']([^"']+)["']/);
       if (tokenInputMatch && tokenInputMatch[1]) {
-        xsrfToken = tokenInputMatch[1];
+        csrfToken = tokenInputMatch[1];
         console.log('[API] Found CSRF token from hidden input');
       }
     }
 
-    if (!xsrfToken) {
-      const inlineTokenMatch = signupHtml.match(/['"]?csrf['"]?\s*[:=]\s*['"]([^'"]+)['"]/);
-      if (inlineTokenMatch && inlineTokenMatch[1]) {
-        xsrfToken = inlineTokenMatch[1];
-        console.log('[API] Found CSRF token from inline JS');
-      }
+    console.log('[API] CSRF token found:', !!csrfToken, 'length:', csrfToken.length);
+    
+    if (!csrfToken) {
+      console.error('[API] No CSRF token found in page!');
+      console.log('[API] Page snippet:', signupHtml.substring(0, 2000));
+      throw new Error('Could not find CSRF token. Please try again.');
     }
-
-    console.log('[API] CSRF token found:', !!xsrfToken, 'length:', xsrfToken.length);
 
     let snapshot = '';
     let componentId = '';
     
-    const snapshotMatch = signupHtml.match(/wire:snapshot="([^"]+)"/);
+    const snapshotMatch = signupHtml.match(/wire:snapshot=["']([^"']+)["']/);
     if (snapshotMatch && snapshotMatch[1]) {
       snapshot = snapshotMatch[1]
         .replace(/&quot;/g, '"')
         .replace(/&amp;/g, '&')
         .replace(/&#039;/g, "'")
         .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>');
+        .replace(/&gt;/g, '>')
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
       console.log('[API] Found wire:snapshot, length:', snapshot.length);
     }
     
-    const wireIdMatch = signupHtml.match(/wire:id="([^"]+)"/);
+    const wireIdMatch = signupHtml.match(/wire:id=["']([^"']+)["']/);
     if (wireIdMatch && wireIdMatch[1]) {
       componentId = wireIdMatch[1];
       console.log('[API] Found wire:id:', componentId);
     }
 
     if (!snapshot) {
-      const initialDataMatch = signupHtml.match(/wire:initial-data="([^"]+)"/);
+      const initialDataMatch = signupHtml.match(/wire:initial-data=["']([^"']+)["']/);
       if (initialDataMatch && initialDataMatch[1]) {
         snapshot = initialDataMatch[1]
           .replace(/&quot;/g, '"')
@@ -1017,38 +1008,18 @@ class ApiService {
     }
 
     if (!snapshot) {
-      console.log('[API] No snapshot found, creating minimal snapshot');
-      const snapshotObj = {
-        data: {
-          emailAddress: '',
-          activeSocialDrivers: [],
-          showAllSocialOptions: false
-        },
-        memo: {
-          id: componentId || 'signup-form',
-          name: 'user.auth.signup-form',
-          path: 'auth/signup',
-          method: 'GET',
-          children: [],
-          scripts: [],
-          assets: [],
-          errors: [],
-          locale: 'en'
-        },
-        checksum: ''
-      };
-      snapshot = JSON.stringify(snapshotObj);
+      console.error('[API] No wire:snapshot found!');
+      throw new Error('Could not initialize registration form. Please try again.');
     }
 
     let parsedSnapshot: any;
     try {
       parsedSnapshot = JSON.parse(snapshot);
-      parsedSnapshot.data = parsedSnapshot.data || {};
-      parsedSnapshot.data.emailAddress = email;
-      snapshot = JSON.stringify(parsedSnapshot);
-      console.log('[API] Updated snapshot with email');
+      console.log('[API] Parsed snapshot, memo.id:', parsedSnapshot?.memo?.id);
+      console.log('[API] Parsed snapshot, memo.name:', parsedSnapshot?.memo?.name);
     } catch (e) {
-      console.log('[API] Could not parse snapshot:', e);
+      console.error('[API] Could not parse snapshot:', e);
+      throw new Error('Invalid registration form data. Please try again.');
     }
 
     const livewireUrl = 'https://uservault.net/livewire/update';
@@ -1072,27 +1043,19 @@ class ApiService {
       ]
     };
 
-    console.log('[API] Livewire body structure ready');
+    console.log('[API] Livewire request body prepared');
 
     const livewireHeaders: Record<string, string> = {
-      'Accept': 'application/json, text/plain, */*',
+      'Accept': '*/*',
       'Content-Type': 'application/json',
-      'X-Livewire': 'true',
+      'X-Livewire': '',
+      'X-CSRF-TOKEN': csrfToken,
       'Origin': 'https://uservault.net',
       'Referer': 'https://uservault.net/auth/signup',
-      'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
     };
 
-    if (xsrfToken) {
-      livewireHeaders['X-CSRF-TOKEN'] = xsrfToken;
-      livewireHeaders['X-XSRF-TOKEN'] = xsrfToken;
-      console.log('[API] Added CSRF headers');
-    } else {
-      console.warn('[API] No CSRF token available - request may fail');
-    }
-
-    console.log('[API] Sending Livewire request with credentials: include');
-    console.log('[API] Headers:', JSON.stringify(Object.keys(livewireHeaders)));
+    console.log('[API] Sending Livewire request...');
 
     const livewireResponse = await fetch(livewireUrl, {
       method: 'POST',
@@ -1107,7 +1070,7 @@ class ApiService {
     console.log('[API] Livewire response content-type:', contentType);
 
     const livewireText = await livewireResponse.text();
-    console.log('[API] Livewire response (first 500):', livewireText.substring(0, 500));
+    console.log('[API] Livewire response (first 800):', livewireText.substring(0, 800));
 
     if (!livewireResponse.ok) {
       let errorMessage = 'Failed to send verification email';
@@ -1121,26 +1084,11 @@ class ApiService {
         } catch {
           // ignore
         }
-      } else if (livewireText.includes('<!DOCTYPE') || livewireText.includes('<html')) {
-        errorMessage = 'Server returned HTML instead of JSON. The registration page may have changed.';
+      } else if (livewireText.includes('CSRF token mismatch')) {
+        errorMessage = 'Session expired. Please try again.';
       }
       
       throw new Error(errorMessage);
-    }
-
-    if (!contentType.includes('application/json')) {
-      console.log('[API] Response is not JSON, checking for success indicators');
-      
-      if (livewireText.includes('signup-success') || livewireText.includes('verification')) {
-        console.log('[API] Found success indicators in HTML response');
-        return {
-          token: 'pending_email_verification',
-          email,
-          message: 'Verification email sent. Please check your inbox and click the link.',
-        };
-      }
-      
-      throw new Error('Unexpected response from server. Please try again.');
     }
 
     let token = '';
@@ -1148,35 +1096,49 @@ class ApiService {
       const livewireData = JSON.parse(livewireText);
       console.log('[API] Parsed Livewire response');
 
-      const redirect = livewireData?.components?.[0]?.effects?.redirect;
-      if (redirect) {
-        console.log('[API] Found redirect:', redirect);
-        const tokenMatch = redirect.match(/signup-success\/([^/\?]+)/);
+      const effects = livewireData?.components?.[0]?.effects;
+      
+      if (effects?.redirect) {
+        console.log('[API] Found redirect:', effects.redirect);
+        const tokenMatch = effects.redirect.match(/signup-success\/([^/\?]+)/);
         if (tokenMatch && tokenMatch[1]) {
           token = tokenMatch[1];
-          console.log('[API] Extracted token:', token);
+          console.log('[API] Extracted token from redirect:', token);
         }
       }
 
-      const errors = livewireData?.components?.[0]?.effects?.errors;
-      if (errors && Object.keys(errors).length > 0) {
-        const firstError = Object.values(errors)[0];
-        if (Array.isArray(firstError) && firstError.length > 0) {
-          throw new Error(firstError[0] as string);
+      const memoErrors = livewireData?.components?.[0]?.snapshot;
+      if (memoErrors) {
+        try {
+          const snapParsed = JSON.parse(memoErrors);
+          const errors = snapParsed?.memo?.errors;
+          if (errors && Object.keys(errors).length > 0) {
+            const firstErrorKey = Object.keys(errors)[0];
+            const firstError = errors[firstErrorKey];
+            if (Array.isArray(firstError) && firstError.length > 0) {
+              throw new Error(firstError[0] as string);
+            } else if (typeof firstError === 'string') {
+              throw new Error(firstError);
+            }
+          }
+        } catch (parseErr) {
+          if (parseErr instanceof Error && parseErr.message && !parseErr.message.includes('JSON')) {
+            throw parseErr;
+          }
         }
       }
 
-      if (!token && livewireData?.components?.[0]?.effects?.returns) {
-        const returns = livewireData.components[0].effects.returns;
-        if (Array.isArray(returns) && returns[0]) {
-          token = returns[0];
+      if (effects?.returns) {
+        const returns = effects.returns;
+        if (Array.isArray(returns) && returns[0] === null && effects.redirect) {
+          console.log('[API] Success: returns=[null] with redirect');
         }
       }
     } catch (e) {
-      if (e instanceof Error && !e.message.includes('Unexpected')) {
+      if (e instanceof Error && e.message && !e.message.includes('JSON')) {
         throw e;
       }
-      console.error('[API] Failed to parse Livewire response:', e);
+      console.error('[API] Error parsing Livewire response:', e);
     }
 
     if (!token) {
@@ -1192,7 +1154,7 @@ class ApiService {
       token = 'pending_email_verification';
     }
 
-    console.log('[API] Registration email sent successfully');
+    console.log('[API] Registration email sent successfully, token:', token);
     return {
       token,
       email,
