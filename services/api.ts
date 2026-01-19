@@ -923,6 +923,7 @@ class ApiService {
 
     const response = await fetch(`${this.baseUrl}/register/send-code`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -985,6 +986,7 @@ class ApiService {
 
     const response = await fetch(`${this.baseUrl}/register/verify`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -1046,6 +1048,7 @@ class ApiService {
 
     const response = await fetch(`${this.baseUrl}/password/forgot`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -1096,6 +1099,7 @@ class ApiService {
 
     const response = await fetch(`${this.baseUrl}/password/reset`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
