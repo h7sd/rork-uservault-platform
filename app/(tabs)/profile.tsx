@@ -213,8 +213,16 @@ function getPostPreviewUrl(post: Post): string | null {
   const firstMedia = post.relations.media[0];
   console.log('[Profile] first media object:', JSON.stringify(firstMedia));
   
-  let mediaUrl = firstMedia?.source_url || firstMedia?.thumbnail_url;
-  console.log('[Profile] extracted media URL:', mediaUrl);
+  const mediaType = firstMedia?.type;
+  let mediaUrl: string | null | undefined = null;
+  
+  if (mediaType === 'VIDEO') {
+    mediaUrl = firstMedia?.thumbnail_url;
+    console.log('[Profile] video detected, using thumbnail:', mediaUrl);
+  } else {
+    mediaUrl = firstMedia?.source_url || firstMedia?.thumbnail_url;
+    console.log('[Profile] image/other media, using source_url:', mediaUrl);
+  }
   
   if (typeof mediaUrl === 'string' && mediaUrl.length > 0) {
     if (!mediaUrl.startsWith('http://') && !mediaUrl.startsWith('https://')) {
@@ -292,14 +300,14 @@ export default function ProfileScreen() {
   const hasSyncedRef = useRef(false);
   const lastSyncedIdRef = useRef<number | null>(null);
   const initialUserIdRef = useRef<number | null>(currentUser?.id ?? null);
+  const updateCountRef = useRef(0);
   
   useEffect(() => {
     if (initialUserIdRef.current === null && currentUser?.id) {
       initialUserIdRef.current = currentUser.id;
       console.log('[Profile] Stored initial user ID:', currentUser.id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentUser?.id]);
   
   const displayUser = useMemo(() => {
     if (!currentUser) return null;
@@ -326,11 +334,17 @@ export default function ProfileScreen() {
       return;
     }
     
+    if (updateCountRef.current >= 2) {
+      console.log('[Profile] ⚠️ Already synced twice, preventing infinite loop');
+      return;
+    }
+    
     if (fetchedUser.id === initialUserIdRef.current && currentUser?.id === fetchedUser.id) {
       if (!hasSyncedRef.current || lastSyncedIdRef.current !== fetchedUser.id) {
         console.log('[Profile] ✓ Syncing fetched user into AuthContext, id:', fetchedUser.id);
         hasSyncedRef.current = true;
         lastSyncedIdRef.current = fetchedUser.id;
+        updateCountRef.current += 1;
         updateUser({ ...fetchedUser, is_temporary: false });
       }
     }

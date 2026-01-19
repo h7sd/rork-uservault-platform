@@ -169,10 +169,19 @@ function getPostPreviewUrl(post: Post): string | null {
   if (!Array.isArray(post.relations.media) || post.relations.media.length === 0) return null;
   
   const firstMedia = post.relations.media[0];
-  const rawUrl = firstMedia?.source_url || firstMedia?.thumbnail_url;
+  const mediaType = firstMedia?.type;
+  let rawUrl: string | null | undefined = null;
   
   console.log('[UserProfile] Post', post.id, 'media:', firstMedia);
-  console.log('[UserProfile] Post', post.id, 'rawUrl:', rawUrl);
+  console.log('[UserProfile] Post', post.id, 'media type:', mediaType);
+  
+  if (mediaType === 'VIDEO') {
+    rawUrl = firstMedia?.thumbnail_url;
+    console.log('[UserProfile] Post', post.id, 'is video, using thumbnail:', rawUrl);
+  } else {
+    rawUrl = firstMedia?.source_url || firstMedia?.thumbnail_url;
+    console.log('[UserProfile] Post', post.id, 'is image/other, using source:', rawUrl);
+  }
   
   if (typeof rawUrl === 'string' && rawUrl.length > 0) {
     if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
