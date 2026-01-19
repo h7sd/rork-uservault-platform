@@ -689,11 +689,11 @@ const styles = StyleSheet.create({
   fullscreenVideoContainer: {
     flex: 1,
     backgroundColor: colors.dark.background,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center' as 'center',
+    alignItems: 'center' as 'center',
   },
   fullscreenVideo: {
-    width: '100%',
+    width: width,
     height: '100%',
   },
   closeButton: {

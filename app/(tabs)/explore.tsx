@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as 'center',
   },
   fullscreenVideo: {
-    width: '100%',
+    width: width,
     height: '100%',
   },
   closeButton: {
