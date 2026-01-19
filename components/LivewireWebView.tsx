@@ -264,13 +264,23 @@ export default function LivewireWebView({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    width: 1,
-    height: 1,
-    opacity: 0,
+    top: 100,
+    left: 20,
+    right: 20,
+    height: 500,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
     overflow: 'hidden',
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 20,
   },
   webview: {
-    width: 400,
-    height: 600,
+    flex: 1,
   },
 });
