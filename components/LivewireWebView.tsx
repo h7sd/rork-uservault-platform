@@ -32,8 +32,8 @@ export default function LivewireWebView({
       
       timeoutRef.current = setTimeout(() => {
         console.log('[LivewireWebView] Timeout reached!');
-        onError('Loading timeout. Please try again.');
-      }, 30000);
+        onError('Connection timeout. Please check your internet and try again.');
+      }, 20000);
     } else {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -60,8 +60,10 @@ export default function LivewireWebView({
 
   const injectedJavaScript = `
     (function() {
-      // Wait for DOM to be ready
-      function checkReady() {
+      var checkCount = 0;
+      var maxChecks = 30;
+      
+      function findEmailInput() {
         var emailInput = document.querySelector('input[type="email"]') || 
                           document.querySelector('input[name="emailAddress"]') ||
                           document.querySelector('input[name="email"]');
@@ -80,35 +82,42 @@ export default function LivewireWebView({
           }
         }
         
+        if (!emailInput) {
+          var allInputs = document.querySelectorAll('input');
+          for (var i = 0; i < allInputs.length; i++) {
+            if (allInputs[i].type === 'text' || allInputs[i].type === 'email' || !allInputs[i].type) {
+              emailInput = allInputs[i];
+              break;
+            }
+          }
+        }
+        
+        return emailInput;
+      }
+      
+      function checkReady() {
+        checkCount++;
+        var emailInput = findEmailInput();
+        
         if (emailInput) {
-          console.log('[WebView] Page ready - email input found');
+          console.log('[WebView] Page ready - input found after ' + checkCount + ' checks');
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'page_loaded',
             url: window.location.href
           }));
+        } else if (checkCount < maxChecks) {
+          setTimeout(checkReady, 300);
         } else {
-          console.log('[WebView] Waiting for email input...');
-          setTimeout(checkReady, 500);
+          console.log('[WebView] Giving up after ' + maxChecks + ' checks, sending ready anyway');
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'page_loaded',
+            url: window.location.href
+          }));
         }
       }
       
-      // Start checking after a short delay
-      setTimeout(checkReady, 1000);
+      setTimeout(checkReady, 500);
 
-      // Override console.log to capture Livewire logs
-      var originalLog = console.log;
-      console.log = function() {
-        originalLog.apply(console, arguments);
-        try {
-          var args = Array.prototype.slice.call(arguments);
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'console',
-            message: args.map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' ')
-          }));
-        } catch(e) {}
-      };
-
-      // Listen for Livewire navigation
       document.addEventListener('livewire:navigated', function() {
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'navigated',
@@ -116,7 +125,6 @@ export default function LivewireWebView({
         }));
       });
 
-      // Watch for URL changes
       var lastUrl = window.location.href;
       setInterval(function() {
         if (window.location.href !== lastUrl) {
@@ -276,10 +284,7 @@ export default function LivewireWebView({
 
   useEffect(() => {
     if (trigger && isReady && !hasSubmitted && email) {
-      console.log('[LivewireWebView] ========================================');
-      console.log('[LivewireWebView] READY TO SUBMIT!');
-      console.log('[LivewireWebView] Email:', email);
-      console.log('[LivewireWebView] ========================================');
+      console.log('[LivewireWebView] READY TO SUBMIT! Email:', email);
       
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -288,9 +293,8 @@ export default function LivewireWebView({
       
       const currentEmail = email;
       setTimeout(() => {
-        console.log('[LivewireWebView] Executing fillAndSubmitForm...');
         fillAndSubmitForm(currentEmail);
-      }, 1000);
+      }, 500);
     }
   }, [trigger, isReady, hasSubmitted, email, fillAndSubmitForm]);
 
@@ -381,7 +385,9 @@ export default function LivewireWebView({
         thirdPartyCookiesEnabled={true}
         startInLoadingState={true}
         originWhitelist={['*']}
-        userAgent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36"
+        userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        cacheEnabled={false}
+        incognito={true}
       />
     </View>
   );
