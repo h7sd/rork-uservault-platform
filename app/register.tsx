@@ -116,7 +116,7 @@ function WelcomeOverlay({ visible, username, onComplete }: WelcomeOverlayProps) 
 }
 
 export default function RegisterScreen() {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [email, setEmail] = useState<string>('');
   const [verificationToken, setVerificationToken] = useState<string>('');
   
@@ -208,14 +208,12 @@ export default function RegisterScreen() {
       const result = await registerSendCode(email);
       
       if (result.success && result.token) {
-        console.log('[Register] Code sent successfully, moving to step 2');
+        console.log('[Register] Email sent successfully, moving to step 2 (email confirmation)');
         setVerificationToken(result.token);
         setStep(2);
-        Alert.alert(
-          'Check your email',
-          'We sent you a verification link. Please click it to continue registration.',
-          [{ text: 'OK' }]
-        );
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
       } else {
         console.error('[Register] Send code failed:', result.error);
         shakeInput();
@@ -334,6 +332,86 @@ export default function RegisterScreen() {
     setShowWelcome(false);
     router.replace('/(tabs)');
   };
+
+  if (step === 2) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient
+          colors={['#1a1a2e', '#0f0f1e', '#0a0a0a']}
+          style={styles.gradientBackground}
+        />
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={false}
+        >
+          <KeyboardAvoidingView
+            style={styles.content}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <Animated.View 
+              style={[
+                styles.headerSection,
+                { 
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }]
+                }
+              ]}
+            >
+              <View style={styles.logoContainer}>
+                <Text style={styles.uvLogo}>UV</Text>
+              </View>
+              
+              <Text style={styles.title}>Check your email</Text>
+              <Text style={styles.subtitle}>We sent a verification link to</Text>
+              <Text style={styles.emailDisplay}>{email}</Text>
+            </Animated.View>
+
+            <Animated.View 
+              style={[
+                styles.formSection,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }]
+                }
+              ]}
+            >
+              <View style={styles.emailVerificationBox}>
+                <Mail color="#8B5CF6" size={64} />
+                <Text style={styles.verificationTitle}>Verify your email</Text>
+                <Text style={styles.verificationText}>
+                  Please click the verification link in your email to continue.
+                </Text>
+                <Text style={styles.verificationSubtext}>
+                  After clicking the link, come back here and tap &quot;Continue&quot; below.
+                </Text>
+              </View>
+
+              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+                <TouchableOpacity
+                  style={styles.registerButton}
+                  onPress={() => {
+                    setStep(3);
+                    if (Platform.OS !== 'web') {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    }
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.registerButtonText}>I&apos;ve verified my email</Text>
+                </TouchableOpacity>
+              </Animated.View>
+
+              <TouchableOpacity onPress={() => setStep(1)} style={styles.backButton}>
+                <Text style={styles.backLink}>Use a different email</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </KeyboardAvoidingView>
+        </ScrollView>
+      </View>
+    );
+  }
 
   if (step === 1) {
     return (
@@ -468,7 +546,7 @@ export default function RegisterScreen() {
             </View>
             
             <Text style={styles.title}>Complete your profile</Text>
-            <Text style={styles.subtitle}>Step 2: Fill in your details</Text>
+            <Text style={styles.subtitle}>Step 3: Fill in your details</Text>
           </Animated.View>
 
           <Animated.View 
@@ -699,8 +777,8 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            <TouchableOpacity onPress={() => setStep(1)} style={styles.backButton}>
-              <Text style={styles.backLink}>Back to email</Text>
+            <TouchableOpacity onPress={() => setStep(2)} style={styles.backButton}>
+              <Text style={styles.backLink}>Back to verification</Text>
             </TouchableOpacity>
           </Animated.View>
         </KeyboardAvoidingView>
@@ -756,6 +834,43 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#9CA3AF',
     lineHeight: 22,
+    textAlign: 'center',
+  },
+  emailDisplay: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#8B5CF6',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  emailVerificationBox: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    marginVertical: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
+  },
+  verificationTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    marginTop: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  verificationText: {
+    fontSize: 15,
+    color: '#D1D5DB',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  verificationSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    lineHeight: 20,
     textAlign: 'center',
   },
   formSection: {
