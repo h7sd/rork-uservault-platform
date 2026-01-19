@@ -22,6 +22,11 @@ export default function LivewireWebView({
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [webViewKey, setWebViewKey] = useState(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isReadyRef = useRef(false);
+
+  useEffect(() => {
+    isReadyRef.current = isReady;
+  }, [isReady]);
 
   useEffect(() => {
     if (trigger) {
@@ -33,7 +38,7 @@ export default function LivewireWebView({
       timeoutRef.current = setTimeout(() => {
         console.log('[LivewireWebView] Timeout reached!');
         onError('Connection timeout. Please check your internet and try again.');
-      }, 20000);
+      }, 30000);
     } else {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -61,7 +66,7 @@ export default function LivewireWebView({
   const injectedJavaScript = `
     (function() {
       var checkCount = 0;
-      var maxChecks = 30;
+      var maxChecks = 50;
       
       function findEmailInput() {
         var emailInput = document.querySelector('input[type="email"]') || 
@@ -106,7 +111,7 @@ export default function LivewireWebView({
             url: window.location.href
           }));
         } else if (checkCount < maxChecks) {
-          setTimeout(checkReady, 300);
+          setTimeout(checkReady, 200);
         } else {
           console.log('[WebView] Giving up after ' + maxChecks + ' checks, sending ready anyway');
           window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -116,7 +121,14 @@ export default function LivewireWebView({
         }
       }
       
-      setTimeout(checkReady, 500);
+      if (document.readyState === 'complete') {
+        setTimeout(checkReady, 300);
+      } else {
+        window.addEventListener('load', function() {
+          setTimeout(checkReady, 300);
+        });
+        setTimeout(checkReady, 2000);
+      }
 
       document.addEventListener('livewire:navigated', function() {
         window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -378,12 +390,21 @@ export default function LivewireWebView({
         onMessage={handleMessage}
         onNavigationStateChange={handleNavigationStateChange}
         onError={handleError}
+        onLoadEnd={() => {
+          console.log('[LivewireWebView] WebView load ended');
+          setTimeout(() => {
+            if (!isReadyRef.current) {
+              console.log('[LivewireWebView] Forcing ready state after load');
+              setIsReady(true);
+            }
+          }, 2000);
+        }}
         injectedJavaScript={injectedJavaScript}
         javaScriptEnabled={true}
         domStorageEnabled={true}
         sharedCookiesEnabled={true}
         thirdPartyCookiesEnabled={true}
-        startInLoadingState={true}
+        startInLoadingState={false}
         originWhitelist={['*']}
         userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         cacheEnabled={false}
