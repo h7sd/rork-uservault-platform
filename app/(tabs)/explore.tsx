@@ -28,9 +28,9 @@ const { width } = Dimensions.get('window');
 
 function PostItem({ post }: { post: Post }) {
   const [showReactionPicker, setShowReactionPicker] = useState<boolean>(false);
-  const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
+  const [showFullscreenVideo, setShowFullscreenVideo] = useState<boolean>(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const videoRef = useRef<Video>(null);
+  const fullscreenVideoRef = useRef<Video>(null);
   const likeMutation = useLikePost();
   const router = useRouter();
 
@@ -100,22 +100,15 @@ function PostItem({ post }: { post: Post }) {
   console.log('[Explore] Post:', post.id, 'thumbnailUrl:', thumbnailUrl);
   console.log('[Explore] Post:', post.id, 'finalImage:', postImage, 'finalVideo:', videoUrl);
 
-  const handleVideoPress = React.useCallback(async () => {
-    if (!videoRef.current) return;
-    try {
-      const status = await videoRef.current.getStatusAsync();
-      if (status.isLoaded) {
-        if (status.isPlaying) {
-          await videoRef.current.pauseAsync();
-          setIsVideoPlaying(false);
-        } else {
-          await videoRef.current.playAsync();
-          setIsVideoPlaying(true);
-        }
-      }
-    } catch (error) {
-      console.error('[Explore] Video playback error:', error);
+  const handleVideoPress = React.useCallback(() => {
+    setShowFullscreenVideo(true);
+  }, []);
+
+  const handleCloseFullscreen = React.useCallback(async () => {
+    if (fullscreenVideoRef.current) {
+      await fullscreenVideoRef.current.pauseAsync();
     }
+    setShowFullscreenVideo(false);
   }, []);
 
   return (
@@ -152,30 +145,16 @@ function PostItem({ post }: { post: Post }) {
           onPress={handleVideoPress}
           activeOpacity={0.95}
         >
-          <Video
-            ref={videoRef}
-            source={{ uri: videoUrl }}
+          <Image
+            source={{ uri: thumbnailUrl || videoUrl }}
             style={styles.postImage}
-            resizeMode={ResizeMode.COVER}
-            isLooping
-            shouldPlay={false}
-            useNativeControls={false}
-            onPlaybackStatusUpdate={(status) => {
-              if (status.isLoaded) {
-                setIsVideoPlaying(status.isPlaying);
-              }
-            }}
-            onError={(error) => {
-              console.error('[Explore] Video load error:', error);
-            }}
+            resizeMode="cover"
           />
-          {!isVideoPlaying && (
-            <View style={styles.videoPlayButton}>
-              <View style={styles.playButtonCircle}>
-                <Play color={colors.dark.text} size={32} fill={colors.dark.text} />
-              </View>
+          <View style={styles.videoPlayButton}>
+            <View style={styles.playButtonCircle}>
+              <Play color={colors.dark.text} size={32} fill={colors.dark.text} />
             </View>
-          )}
+          </View>
         </TouchableOpacity>
       ) : postImage ? (
         <Image 
@@ -226,6 +205,37 @@ function PostItem({ post }: { post: Post }) {
         </View>
         <Text style={styles.leaveComment}>Leave a comment</Text>
       </View>
+
+      <Modal
+        visible={showFullscreenVideo}
+        transparent={false}
+        animationType="fade"
+        onRequestClose={handleCloseFullscreen}
+        statusBarTranslucent
+      >
+        <View style={styles.fullscreenVideoContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={handleCloseFullscreen}
+          >
+            <X color={colors.dark.text} size={28} />
+          </TouchableOpacity>
+          {videoUrl && (
+            <Video
+              ref={fullscreenVideoRef}
+              source={{ uri: videoUrl }}
+              style={styles.fullscreenVideo}
+              resizeMode={ResizeMode.CONTAIN}
+              isLooping
+              shouldPlay={true}
+              useNativeControls={true}
+              onError={(error) => {
+                console.error('[Explore] Fullscreen video error:', error);
+              }}
+            />
+          )}
+        </View>
+      </Modal>
 
       <Modal
         visible={showReactionPicker}
@@ -599,6 +609,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as 'center',
     borderWidth: 3,
     borderColor: colors.dark.text,
+  },
+  fullscreenVideoContainer: {
+    flex: 1,
+    backgroundColor: colors.dark.background,
+    justifyContent: 'center' as 'center',
+    alignItems: 'center' as 'center',
+  },
+  fullscreenVideo: {
+    width: '100%',
+    height: '100%',
+  },
+  closeButton: {
+    position: 'absolute' as 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center' as 'center',
+    justifyContent: 'center' as 'center',
   },
 
   postFooter: {
