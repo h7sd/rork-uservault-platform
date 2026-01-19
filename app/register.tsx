@@ -11,13 +11,19 @@ import {
   Alert,
   Animated,
   ScrollView,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Check, ChevronDown, Mail } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
 import LivewireWebView from '@/components/LivewireWebView';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Linking from 'expo-linking';
+
+const PENDING_VERIFICATION_KEY = 'pending_verification_token';
 
 const COUNTRIES = [
   { code: 'DE', name: 'Germany' },
@@ -141,6 +147,86 @@ export default function RegisterScreen() {
   const [webViewTrigger, setWebViewTrigger] = useState(false);
   const useWebView = Platform.OS !== 'web';
   const router = useRouter();
+  const params = useLocalSearchParams<{ verificationToken?: string }>();
+
+  useEffect(() => {
+    const checkForPendingToken = async () => {
+      if (params.verificationToken) {
+        console.log('[Register] Received token from deep link:', params.verificationToken);
+        setVerificationToken(params.verificationToken);
+        setStep(3);
+        await AsyncStorage.removeItem(PENDING_VERIFICATION_KEY);
+        return;
+      }
+
+      try {
+        const storedToken = await AsyncStorage.getItem(PENDING_VERIFICATION_KEY);
+        if (storedToken) {
+          console.log('[Register] Found stored verification token:', storedToken);
+          setVerificationToken(storedToken);
+          setStep(3);
+          await AsyncStorage.removeItem(PENDING_VERIFICATION_KEY);
+        }
+      } catch (error) {
+        console.error('[Register] Error checking stored token:', error);
+      }
+    };
+
+    checkForPendingToken();
+  }, [params.verificationToken]);
+
+  useEffect(() => {
+    const handleDeepLink = (event: { url: string }) => {
+      console.log('[Register] Deep link received:', event.url);
+      const successMatch = event.url.match(/signup-success\/([^\/?]+)/) || 
+                           event.url.match(/verify-email\/([^\/?]+)/);
+      if (successMatch && successMatch[1]) {
+        console.log('[Register] Token from deep link:', successMatch[1]);
+        setVerificationToken(successMatch[1]);
+        setStep(3);
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      }
+    };
+
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && step === 2) {
+        console.log('[Register] App became active, checking for stored token...');
+        try {
+          const storedToken = await AsyncStorage.getItem(PENDING_VERIFICATION_KEY);
+          if (storedToken) {
+            console.log('[Register] Found token after returning:', storedToken);
+            setVerificationToken(storedToken);
+            setStep(3);
+            await AsyncStorage.removeItem(PENDING_VERIFICATION_KEY);
+            if (Platform.OS !== 'web') {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+          }
+        } catch (error) {
+          console.error('[Register] Error checking token on app resume:', error);
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [step]);
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
