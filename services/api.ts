@@ -940,14 +940,32 @@ class ApiService {
       throw new Error('Failed to load signup page');
     }
 
+    let xsrfToken = '';
+    
+    const setCookieHeader = signupResponse.headers.get('set-cookie');
+    console.log('[API] Set-Cookie header present:', !!setCookieHeader);
+    
+    if (setCookieHeader) {
+      const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/);
+      if (xsrfMatch && xsrfMatch[1]) {
+        try {
+          xsrfToken = decodeURIComponent(xsrfMatch[1]);
+          console.log('[API] Found XSRF token from Set-Cookie header');
+        } catch {
+          console.log('[API] Failed to decode XSRF token from cookie');
+        }
+      }
+    }
+
     const signupHtml = await signupResponse.text();
     console.log('[API] Signup page loaded, length:', signupHtml.length);
 
-    let xsrfToken = '';
-    const csrfMetaMatch = signupHtml.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
-    if (csrfMetaMatch && csrfMetaMatch[1]) {
-      xsrfToken = csrfMetaMatch[1];
-      console.log('[API] Found CSRF token from meta tag');
+    if (!xsrfToken) {
+      const csrfMetaMatch = signupHtml.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
+      if (csrfMetaMatch && csrfMetaMatch[1]) {
+        xsrfToken = csrfMetaMatch[1];
+        console.log('[API] Found CSRF token from meta tag');
+      }
     }
 
     if (!xsrfToken) {
@@ -966,7 +984,7 @@ class ApiService {
       }
     }
 
-    console.log('[API] CSRF token found:', !!xsrfToken);
+    console.log('[API] CSRF token found:', !!xsrfToken, 'length:', xsrfToken.length);
 
     let snapshot = '';
     let componentId = '';
@@ -1059,7 +1077,7 @@ class ApiService {
     const livewireHeaders: Record<string, string> = {
       'Accept': 'application/json, text/plain, */*',
       'Content-Type': 'application/json',
-      'X-Livewire': '',
+      'X-Livewire': 'true',
       'Origin': 'https://uservault.net',
       'Referer': 'https://uservault.net/auth/signup',
       'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
@@ -1068,9 +1086,13 @@ class ApiService {
     if (xsrfToken) {
       livewireHeaders['X-CSRF-TOKEN'] = xsrfToken;
       livewireHeaders['X-XSRF-TOKEN'] = xsrfToken;
+      console.log('[API] Added CSRF headers');
+    } else {
+      console.warn('[API] No CSRF token available - request may fail');
     }
 
     console.log('[API] Sending Livewire request with credentials: include');
+    console.log('[API] Headers:', JSON.stringify(Object.keys(livewireHeaders)));
 
     const livewireResponse = await fetch(livewireUrl, {
       method: 'POST',
