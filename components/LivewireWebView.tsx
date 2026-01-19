@@ -20,6 +20,33 @@ export default function LivewireWebView({
   const webViewRef = useRef<WebView>(null);
   const [isReady, setIsReady] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [webViewKey, setWebViewKey] = useState(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (trigger) {
+      console.log('[LivewireWebView] Trigger activated, resetting state...');
+      setHasSubmitted(false);
+      setIsReady(false);
+      setWebViewKey(prev => prev + 1);
+      
+      timeoutRef.current = setTimeout(() => {
+        console.log('[LivewireWebView] Timeout reached!');
+        onError('Loading timeout. Please try again.');
+      }, 30000);
+    } else {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [trigger, onError]);
 
   const baseUrl = action === 'signup' 
     ? 'https://uservault.net/auth/signup' 
@@ -197,17 +224,20 @@ export default function LivewireWebView({
   useEffect(() => {
     if (trigger && isReady && !hasSubmitted && email) {
       console.log('[LivewireWebView] ========================================');
-      console.log('[LivewireWebView] TRIGGER RECEIVED!');
-      console.log('[LivewireWebView] Email from props:', email);
-      console.log('[LivewireWebView] isReady:', isReady);
-      console.log('[LivewireWebView] hasSubmitted:', hasSubmitted);
+      console.log('[LivewireWebView] READY TO SUBMIT!');
+      console.log('[LivewireWebView] Email:', email);
       console.log('[LivewireWebView] ========================================');
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
       
       const currentEmail = email;
       setTimeout(() => {
-        console.log('[LivewireWebView] Executing fillAndSubmitForm with email:', currentEmail);
+        console.log('[LivewireWebView] Executing fillAndSubmitForm...');
         fillAndSubmitForm(currentEmail);
-      }, 800);
+      }, 1000);
     }
   }, [trigger, isReady, hasSubmitted, email, fillAndSubmitForm]);
 
@@ -284,6 +314,7 @@ export default function LivewireWebView({
   return (
     <View style={styles.container}>
       <WebView
+        key={webViewKey}
         ref={webViewRef}
         source={{ uri: baseUrl }}
         style={styles.webview}
