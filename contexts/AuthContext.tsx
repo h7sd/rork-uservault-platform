@@ -371,7 +371,7 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     loadUser();
   }, [loadUser]);
 
-  const register = async (data: {
+  const register = useCallback(async (data: {
     email: string;
     password: string;
     password_confirmation: string;
@@ -470,7 +470,7 @@ export const [AuthContext, useAuth] = createContextHook(() => {
         error: error instanceof Error ? error.message : 'Registration failed',
       };
     }
-  };
+  }, [fetchUserProfile]);
 
   const login = async (emailOrLogin: string, password: string) => {
     try {
