@@ -11,13 +11,12 @@ import {
   Alert,
   Animated,
   ScrollView,
-  Keyboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Check, ChevronDown } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
-import Silk from '@/components/Silk';
 
 const COUNTRIES = [
   { code: 'DE', name: 'Germany' },
@@ -133,7 +132,6 @@ export default function RegisterScreen() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [showWelcome, setShowWelcome] = useState<boolean>(false);
   const [welcomeUsername, setWelcomeUsername] = useState<string>('');
-  const [keyboardVisible, setKeyboardVisible] = useState<boolean>(false);
   
   const { register } = useAuth();
   const router = useRouter();
@@ -157,19 +155,7 @@ export default function RegisterScreen() {
       }),
     ]).start();
 
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setKeyboardVisible(true)
-    );
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardVisible(false)
-    );
 
-    return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
-    };
   }, [fadeAnim, slideAnim]);
 
   const shakeInput = () => {
@@ -309,16 +295,10 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.silkBackground}>
-        <Silk 
-          speed={2} 
-          scale={1.2} 
-          color="#4338CA" 
-          noiseIntensity={1.2} 
-          rotation={0.3}
-          paused={keyboardVisible}
-        />
-      </View>
+      <LinearGradient
+        colors={['#1a1a2e', '#0f0f1e', '#0a0a0a']}
+        style={styles.gradientBackground}
+      />
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -822,8 +802,7 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
     color: '#A1A1AA',
   },
-  silkBackground: {
+  gradientBackground: {
     ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
   },
 });
