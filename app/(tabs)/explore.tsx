@@ -618,8 +618,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as 'center',
   },
   fullscreenVideo: {
-    width: '100%',
-    height: '100%',
+    flex: 1,
   },
   closeButton: {
     position: 'absolute' as 'absolute',
