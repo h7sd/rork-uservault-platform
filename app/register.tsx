@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { Check, ChevronDown, Mail } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
+import LivewireWebView from '@/components/LivewireWebView';
 
 const COUNTRIES = [
   { code: 'DE', name: 'Germany' },
@@ -136,7 +137,9 @@ export default function RegisterScreen() {
   const [showWelcome, setShowWelcome] = useState<boolean>(false);
   const [welcomeUsername, setWelcomeUsername] = useState<string>('');
   
-  const { registerSendCode, registerVerify } = useAuth();
+  const { registerVerify } = useAuth();
+  const [webViewTrigger, setWebViewTrigger] = useState(false);
+  const useWebView = Platform.OS !== 'web';
   const router = useRouter();
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -188,6 +191,27 @@ export default function RegisterScreen() {
     ]).start();
   };
 
+  const handleWebViewSuccess = useCallback((token: string) => {
+    console.log('[Register] WebView success! Token:', token);
+    setIsLoading(false);
+    setVerificationToken(token);
+    setStep(2);
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, []);
+
+  const handleWebViewError = useCallback((error: string) => {
+    console.error('[Register] WebView error:', error);
+    setIsLoading(false);
+    setWebViewTrigger(false);
+    setErrorMessage(error);
+    Alert.alert('Error', error);
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, []);
+
   const handleSendCode = async () => {
     if (!email.trim() || !email.includes('@')) {
       shakeInput();
@@ -202,32 +226,15 @@ export default function RegisterScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    
-    try {
-      console.log('[Register] Sending verification code to:', email);
-      const result = await registerSendCode(email);
-      
-      if (result.success && result.token) {
-        console.log('[Register] Email sent successfully, moving to step 2 (email confirmation)');
-        setVerificationToken(result.token);
-        setStep(2);
-        if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      } else {
-        console.error('[Register] Send code failed:', result.error);
-        shakeInput();
-        setErrorMessage(result.error || 'Failed to send verification code');
-        Alert.alert('Error', result.error || 'Failed to send verification code');
-      }
-    } catch (error) {
-      console.error('[Register] Error:', error);
-      shakeInput();
-      const message = error instanceof Error ? error.message : 'An error occurred';
-      setErrorMessage(message);
-      Alert.alert('Error', message);
-    } finally {
+
+    if (useWebView && Platform.OS !== 'web') {
+      console.log('[Register] Using WebView for registration...');
+      setWebViewTrigger(true);
+    } else {
+      console.log('[Register] WebView not available, showing manual instructions');
       setIsLoading(false);
+      setVerificationToken('manual');
+      setStep(2);
     }
   };
 
@@ -416,6 +423,15 @@ export default function RegisterScreen() {
   if (step === 1) {
     return (
       <View style={styles.container}>
+        {useWebView && Platform.OS !== 'web' && (
+          <LivewireWebView
+            email={email}
+            action="signup"
+            trigger={webViewTrigger}
+            onSuccess={handleWebViewSuccess}
+            onError={handleWebViewError}
+          />
+        )}
         <LinearGradient
           colors={['#1a1a2e', '#0f0f1e', '#0a0a0a']}
           style={styles.gradientBackground}
@@ -519,6 +535,15 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
+      {useWebView && Platform.OS !== 'web' && (
+        <LivewireWebView
+          email={email}
+          action="signup"
+          trigger={webViewTrigger}
+          onSuccess={handleWebViewSuccess}
+          onError={handleWebViewError}
+        />
+      )}
       <LinearGradient
         colors={['#1a1a2e', '#0f0f1e', '#0a0a0a']}
         style={styles.gradientBackground}
