@@ -927,6 +927,7 @@ class ApiService {
 
     const signupResponse = await fetch(signupUrl, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
@@ -939,26 +940,33 @@ class ApiService {
       throw new Error('Failed to load signup page');
     }
 
-    const setCookieHeaders = signupResponse.headers.get('set-cookie') || '';
-    console.log('[API] Set-Cookie headers present:', !!setCookieHeaders);
-    
-    let xsrfToken = '';
-    let sessionCookie = '';
-    
-    const xsrfMatch = setCookieHeaders.match(/XSRF-TOKEN=([^;]+)/);
-    if (xsrfMatch) {
-      xsrfToken = decodeURIComponent(xsrfMatch[1]);
-      console.log('[API] Found XSRF token');
-    }
-    
-    const sessionMatch = setCookieHeaders.match(/user_vault_session=([^;]+)/);
-    if (sessionMatch) {
-      sessionCookie = sessionMatch[1];
-      console.log('[API] Found session cookie');
-    }
-
     const signupHtml = await signupResponse.text();
     console.log('[API] Signup page loaded, length:', signupHtml.length);
+
+    let xsrfToken = '';
+    const csrfMetaMatch = signupHtml.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
+    if (csrfMetaMatch && csrfMetaMatch[1]) {
+      xsrfToken = csrfMetaMatch[1];
+      console.log('[API] Found CSRF token from meta tag');
+    }
+
+    if (!xsrfToken) {
+      const tokenInputMatch = signupHtml.match(/<input[^>]*name="_token"[^>]*value="([^"]+)"/);
+      if (tokenInputMatch && tokenInputMatch[1]) {
+        xsrfToken = tokenInputMatch[1];
+        console.log('[API] Found CSRF token from hidden input');
+      }
+    }
+
+    if (!xsrfToken) {
+      const inlineTokenMatch = signupHtml.match(/['"]?csrf['"]?\s*[:=]\s*['"]([^'"]+)['"]/);
+      if (inlineTokenMatch && inlineTokenMatch[1]) {
+        xsrfToken = inlineTokenMatch[1];
+        console.log('[API] Found CSRF token from inline JS');
+      }
+    }
+
+    console.log('[API] CSRF token found:', !!xsrfToken);
 
     let snapshot = '';
     let componentId = '';
@@ -1048,11 +1056,6 @@ class ApiService {
 
     console.log('[API] Livewire body structure ready');
 
-    const cookieHeader = [
-      xsrfToken ? `XSRF-TOKEN=${encodeURIComponent(xsrfToken)}` : '',
-      sessionCookie ? `user_vault_session=${sessionCookie}` : '',
-    ].filter(Boolean).join('; ');
-
     const livewireHeaders: Record<string, string> = {
       'Accept': 'application/json, text/plain, */*',
       'Content-Type': 'application/json',
@@ -1062,18 +1065,16 @@ class ApiService {
       'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
     };
 
-    if (cookieHeader) {
-      livewireHeaders['Cookie'] = cookieHeader;
-    }
-
     if (xsrfToken) {
+      livewireHeaders['X-CSRF-TOKEN'] = xsrfToken;
       livewireHeaders['X-XSRF-TOKEN'] = xsrfToken;
     }
 
-    console.log('[API] Sending Livewire request...');
+    console.log('[API] Sending Livewire request with credentials: include');
 
     const livewireResponse = await fetch(livewireUrl, {
       method: 'POST',
+      credentials: 'include',
       headers: livewireHeaders,
       body: JSON.stringify(livewireBody),
     });
