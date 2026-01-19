@@ -359,13 +359,15 @@ export default function LivewireWebView({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: -9999,
-    left: -9999,
-    width: 400,
-    height: 600,
-    opacity: 0,
+    top: 0,
+    left: 0,
+    width: 1,
+    height: 1,
+    opacity: 0.01,
+    overflow: 'hidden',
   },
   webview: {
-    flex: 1,
+    width: 400,
+    height: 600,
   },
 });
