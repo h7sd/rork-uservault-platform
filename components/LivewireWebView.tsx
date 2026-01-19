@@ -74,17 +74,30 @@ export default function LivewireWebView({
     })();
   `;
 
-  const fillAndSubmitForm = useCallback(() => {
-    if (!webViewRef.current || !email || hasSubmitted) return;
+  const fillAndSubmitForm = useCallback((emailToUse: string) => {
+    if (!webViewRef.current || !emailToUse || hasSubmitted) {
+      console.log('[LivewireWebView] Cannot submit - missing webview or email or already submitted');
+      console.log('[LivewireWebView] webViewRef.current:', !!webViewRef.current);
+      console.log('[LivewireWebView] emailToUse:', emailToUse);
+      console.log('[LivewireWebView] hasSubmitted:', hasSubmitted);
+      return;
+    }
 
-    console.log('[LivewireWebView] Filling form with email:', email);
+    console.log('[LivewireWebView] ========================================');
+    console.log('[LivewireWebView] FILLING FORM WITH EMAIL:', emailToUse);
+    console.log('[LivewireWebView] ========================================');
     setHasSubmitted(true);
+
+    const safeEmail = emailToUse.replace(/'/g, "\\'").replace(/"/g, '\\"');
 
     const submitScript = `
       (function() {
         try {
+          var emailValue = '${safeEmail}';
+          console.log('[WebView] Starting form fill with email:', emailValue);
+
           // Find the email input field
-          const emailInput = document.querySelector('input[type="email"]') || 
+          var emailInput = document.querySelector('input[type="email"]') || 
                             document.querySelector('input[name="emailAddress"]') ||
                             document.querySelector('input[name="email"]') ||
                             document.querySelector('[wire\\\\:model="emailAddress"]') ||
@@ -92,6 +105,7 @@ export default function LivewireWebView({
                             document.querySelector('[wire\\\\:model.blur="emailAddress"]');
           
           if (!emailInput) {
+            console.log('[WebView] Email input NOT FOUND!');
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'error',
               message: 'Email input not found'
@@ -99,26 +113,39 @@ export default function LivewireWebView({
             return;
           }
 
-          // Set the email value
-          emailInput.value = '${email}';
-          emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-          emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+          console.log('[WebView] Found email input:', emailInput.tagName, emailInput.name || emailInput.type);
+          console.log('[WebView] Current value:', emailInput.value);
+          console.log('[WebView] Setting to:', emailValue);
+
+          // Clear and set the email value
+          emailInput.focus();
+          emailInput.value = '';
+          emailInput.value = emailValue;
+          
+          // Trigger all possible events for Livewire
+          emailInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+          emailInput.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+          emailInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
           emailInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+          console.log('[WebView] After setting - value is now:', emailInput.value);
 
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'email_set',
-            email: '${email}'
+            email: emailInput.value
           }));
 
           // Wait a moment for Livewire to process
           setTimeout(function() {
+            console.log('[WebView] Looking for submit button...');
             // Find and click the submit button
-            const submitButton = document.querySelector('button[type="submit"]') ||
+            var submitButton = document.querySelector('button[type="submit"]') ||
                                 document.querySelector('form button') ||
                                 document.querySelector('[wire\\\\:click="submitForm"]') ||
                                 document.querySelector('button:not([type="button"])');
 
             if (!submitButton) {
+              console.log('[WebView] Submit button NOT FOUND!');
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'error',
                 message: 'Submit button not found'
@@ -126,20 +153,24 @@ export default function LivewireWebView({
               return;
             }
 
+            console.log('[WebView] Found submit button:', submitButton.tagName, submitButton.textContent);
+
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'submitting'
             }));
 
             submitButton.click();
+            console.log('[WebView] Submit button clicked!');
 
             // Check for errors after submission
             setTimeout(function() {
-              const errorEl = document.querySelector('.text-red-500') ||
+              var errorEl = document.querySelector('.text-red-500') ||
                              document.querySelector('.text-danger') ||
                              document.querySelector('[class*="error"]') ||
                              document.querySelector('.invalid-feedback');
               
               if (errorEl && errorEl.textContent.trim()) {
+                console.log('[WebView] Validation error found:', errorEl.textContent.trim());
                 window.ReactNativeWebView.postMessage(JSON.stringify({
                   type: 'validation_error',
                   message: errorEl.textContent.trim()
@@ -147,9 +178,10 @@ export default function LivewireWebView({
               }
             }, 2000);
 
-          }, 500);
+          }, 800);
 
         } catch(e) {
+          console.log('[WebView] ERROR:', e.message);
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'error',
             message: e.message || 'Unknown error'
@@ -160,14 +192,24 @@ export default function LivewireWebView({
     `;
 
     webViewRef.current.injectJavaScript(submitScript);
-  }, [email, hasSubmitted]);
+  }, [hasSubmitted]);
 
   useEffect(() => {
-    if (trigger && isReady && !hasSubmitted) {
-      console.log('[LivewireWebView] Trigger received, filling form...');
-      setTimeout(fillAndSubmitForm, 500);
+    if (trigger && isReady && !hasSubmitted && email) {
+      console.log('[LivewireWebView] ========================================');
+      console.log('[LivewireWebView] TRIGGER RECEIVED!');
+      console.log('[LivewireWebView] Email from props:', email);
+      console.log('[LivewireWebView] isReady:', isReady);
+      console.log('[LivewireWebView] hasSubmitted:', hasSubmitted);
+      console.log('[LivewireWebView] ========================================');
+      
+      const currentEmail = email;
+      setTimeout(() => {
+        console.log('[LivewireWebView] Executing fillAndSubmitForm with email:', currentEmail);
+        fillAndSubmitForm(currentEmail);
+      }, 800);
     }
-  }, [trigger, isReady, hasSubmitted, fillAndSubmitForm]);
+  }, [trigger, isReady, hasSubmitted, email, fillAndSubmitForm]);
 
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
     try {
