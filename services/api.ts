@@ -972,64 +972,122 @@ class ApiService {
 
     const signupHtml = await signupResponse.text();
     console.log('[API] Signup page loaded, length:', signupHtml.length);
-    console.log('[API] Page preview:', signupHtml.substring(0, 500));
+    console.log('[API] Page preview:', signupHtml.substring(0, 800));
 
     let csrfToken = '';
-    let xsrfToken = '';
-    
-    // Extract XSRF-TOKEN from Set-Cookie header
-    const setCookieHeader = signupResponse.headers.get('set-cookie');
-    console.log('[API] Set-Cookie header:', setCookieHeader?.substring(0, 500));
-    
-    if (setCookieHeader) {
-      const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/);
-      if (xsrfMatch && xsrfMatch[1]) {
-        xsrfToken = decodeURIComponent(xsrfMatch[1]);
-        console.log('[API] Found XSRF-TOKEN from cookie, length:', xsrfToken.length);
-      }
-    }
     
     // Try multiple patterns for CSRF token extraction from HTML
-    const csrfPatterns = [
-      /<meta[^>]*name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i,
-      /<meta[^>]*content=["']([^"']+)["'][^>]*name=["']csrf-token["']/i,
-      /name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i,
-      /content=["']([^"']+)["'][^>]*name=["']csrf-token["']/i,
-      /<input[^>]*name=["']_token["'][^>]*value=["']([^"']+)["']/i,
-      /<input[^>]*value=["']([^"']+)["'][^>]*name=["']_token["']/i,
-      /"csrf"\s*:\s*"([^"]+)"/i,
-      /'csrf'\s*:\s*'([^']+)'/i,
-      /csrf[_-]?token["']?\s*[=:]\s*["']([^"']+)["']/i,
-      /"csrfToken"\s*:\s*"([^"]+)"/i,
+    // Pattern 1: Standard Laravel meta tag
+    const metaPatterns = [
+      /<meta\s+name\s*=\s*["']csrf-token["']\s+content\s*=\s*["']([^"']+)["']/i,
+      /<meta\s+content\s*=\s*["']([^"']+)["']\s+name\s*=\s*["']csrf-token["']/i,
+      /name\s*=\s*["']csrf-token["'][^>]*content\s*=\s*["']([^"']+)["']/i,
+      /content\s*=\s*["']([^"']+)["'][^>]*name\s*=\s*["']csrf-token["']/i,
     ];
 
-    for (const pattern of csrfPatterns) {
+    for (const pattern of metaPatterns) {
       const match = signupHtml.match(pattern);
       if (match && match[1] && match[1].length > 20) {
         csrfToken = match[1];
-        console.log('[API] Found CSRF token in HTML with pattern:', pattern.toString().substring(0, 50));
+        console.log('[API] Found CSRF token via meta tag');
         break;
       }
     }
 
-    // Use XSRF token from cookie if no CSRF in HTML
-    if (!csrfToken && xsrfToken) {
-      csrfToken = xsrfToken;
-      console.log('[API] Using XSRF-TOKEN from cookie as CSRF token');
+    // Pattern 2: Hidden input field
+    if (!csrfToken) {
+      const inputPatterns = [
+        /<input[^>]*name\s*=\s*["']_token["'][^>]*value\s*=\s*["']([^"']+)["']/i,
+        /<input[^>]*value\s*=\s*["']([^"']+)["'][^>]*name\s*=\s*["']_token["']/i,
+        /type\s*=\s*["']hidden["'][^>]*name\s*=\s*["']_token["'][^>]*value\s*=\s*["']([^"']+)["']/i,
+      ];
+      
+      for (const pattern of inputPatterns) {
+        const match = signupHtml.match(pattern);
+        if (match && match[1] && match[1].length > 20) {
+          csrfToken = match[1];
+          console.log('[API] Found CSRF token via hidden input');
+          break;
+        }
+      }
+    }
+
+    // Pattern 3: JavaScript config object (Livewire/Alpine)
+    if (!csrfToken) {
+      const jsPatterns = [
+        /["']?csrf["']?\s*:\s*["']([a-zA-Z0-9]{20,})["']/i,
+        /["']?csrfToken["']?\s*:\s*["']([a-zA-Z0-9]{20,})["']/i,
+        /csrf_token\s*[=:]\s*["']([a-zA-Z0-9]{20,})["']/i,
+        /Livewire\.(?:all\(\)|start).*?csrf.*?["']([a-zA-Z0-9]{20,})["']/is,
+        /window\.livewire_token\s*=\s*["']([a-zA-Z0-9]{20,})["']/i,
+      ];
+      
+      for (const pattern of jsPatterns) {
+        const match = signupHtml.match(pattern);
+        if (match && match[1] && match[1].length > 20) {
+          csrfToken = match[1];
+          console.log('[API] Found CSRF token via JS config');
+          break;
+        }
+      }
+    }
+
+    // Pattern 4: Extract from wire:snapshot JSON (Livewire 3)
+    if (!csrfToken) {
+      const snapshotMatch = signupHtml.match(/wire:snapshot\s*=\s*["']([^"']+)["']/i);
+      if (snapshotMatch && snapshotMatch[1]) {
+        try {
+          const decodedSnapshot = this.decodeHtmlEntities(snapshotMatch[1]);
+          const snapData = JSON.parse(decodedSnapshot);
+          // In Livewire 3, the checksum in snapshot serves as CSRF protection
+          // But we still need the page's CSRF token for the X-CSRF-TOKEN header
+          if (snapData?.memo?.csrf) {
+            csrfToken = snapData.memo.csrf;
+            console.log('[API] Found CSRF token in wire:snapshot memo');
+          }
+        } catch (e) {
+          console.log('[API] Could not parse snapshot for CSRF:', e);
+        }
+      }
+    }
+
+    // Pattern 5: Look in any script tags for token assignment
+    if (!csrfToken) {
+      const scriptBlocks = signupHtml.match(/<script[^>]*>([\s\S]*?)<\/script>/gi) || [];
+      for (const scriptBlock of scriptBlocks) {
+        const tokenMatch = scriptBlock.match(/['"]?(?:csrf|_token|csrfToken)['"]?\s*[=:]\s*['"]([a-zA-Z0-9]{30,})['"]/);
+        if (tokenMatch && tokenMatch[1]) {
+          csrfToken = tokenMatch[1];
+          console.log('[API] Found CSRF token in script block');
+          break;
+        }
+      }
+    }
+
+    // Pattern 6: Look for any 40+ char alphanumeric token near "csrf" text
+    if (!csrfToken) {
+      const genericMatch = signupHtml.match(/csrf[^"']*["']([a-zA-Z0-9]{40,})["']/i);
+      if (genericMatch && genericMatch[1]) {
+        csrfToken = genericMatch[1];
+        console.log('[API] Found CSRF token via generic pattern');
+      }
     }
 
     console.log('[API] CSRF token found:', !!csrfToken, 'length:', csrfToken.length);
     
     if (!csrfToken) {
-      console.error('[API] No CSRF token found!');
-      // Log head section for debugging
+      console.error('[API] No CSRF token found in page!');
+      // Log more detailed debugging info
       const headMatch = signupHtml.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
       if (headMatch) {
-        console.log('[API] Head section (first 2000):', headMatch[1].substring(0, 2000));
+        console.log('[API] Head section:', headMatch[1].substring(0, 3000));
       }
-      // Search for any token-like strings
-      const tokenSearch = signupHtml.match(/token["']?\s*[=:]\s*["']([a-zA-Z0-9]{20,})["']/gi);
-      console.log('[API] Token-like strings found:', tokenSearch?.slice(0, 3));
+      // Look for meta tags
+      const metaTags = signupHtml.match(/<meta[^>]+>/gi);
+      console.log('[API] All meta tags:', metaTags?.join('\n'));
+      // Look for any forms
+      const forms = signupHtml.match(/<form[^>]*>[\s\S]*?<\/form>/gi);
+      console.log('[API] Forms found:', forms?.length, forms?.[0]?.substring(0, 500));
       throw new Error('Could not find CSRF token. Please try again.');
     }
 
@@ -1111,11 +1169,6 @@ class ApiService {
       'Referer': 'https://uservault.net/auth/signup',
       'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
     };
-
-    // Add X-XSRF-TOKEN if we have it
-    if (xsrfToken) {
-      livewireHeaders['X-XSRF-TOKEN'] = xsrfToken;
-    }
 
     console.log('[API] Sending Livewire request with headers:', Object.keys(livewireHeaders));
 
