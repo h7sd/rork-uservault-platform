@@ -126,10 +126,21 @@ export default function LivewireWebView({
           // Find the email input field
           var emailInput = document.querySelector('input[type="email"]') || 
                             document.querySelector('input[name="emailAddress"]') ||
-                            document.querySelector('input[name="email"]') ||
-                            document.querySelector('[wire\\\\:model="emailAddress"]') ||
-                            document.querySelector('[wire\\\\:model.live="emailAddress"]') ||
-                            document.querySelector('[wire\\\\:model.blur="emailAddress"]');
+                            document.querySelector('input[name="email"]');
+          
+          // If not found, try to find by wire:model attribute manually
+          if (!emailInput) {
+            var allInputs = document.querySelectorAll('input');
+            for (var i = 0; i < allInputs.length; i++) {
+              var inp = allInputs[i];
+              if (inp.getAttribute('wire:model') === 'emailAddress' ||
+                  inp.getAttribute('wire:model.live') === 'emailAddress' ||
+                  inp.getAttribute('wire:model.blur') === 'emailAddress') {
+                emailInput = inp;
+                break;
+              }
+            }
+          }
           
           if (!emailInput) {
             console.log('[WebView] Email input NOT FOUND!');
@@ -168,8 +179,19 @@ export default function LivewireWebView({
             // Find and click the submit button
             var submitButton = document.querySelector('button[type="submit"]') ||
                                 document.querySelector('form button') ||
-                                document.querySelector('[wire\\\\:click="submitForm"]') ||
                                 document.querySelector('button:not([type="button"])');
+            
+            // If not found, try to find by wire:click attribute manually
+            if (!submitButton) {
+              var allButtons = document.querySelectorAll('button');
+              for (var j = 0; j < allButtons.length; j++) {
+                var btn = allButtons[j];
+                if (btn.getAttribute('wire:click') === 'submitForm') {
+                  submitButton = btn;
+                  break;
+                }
+              }
+            }
 
             if (!submitButton) {
               console.log('[WebView] Submit button NOT FOUND!');
