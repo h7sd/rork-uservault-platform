@@ -918,8 +918,37 @@ class ApiService {
     return this.post('/follows/accept/user', { id: userId });
   }
 
+  private extractCookiesFromHeaders(response: Response): string {
+    const cookies: string[] = [];
+    const setCookieHeaders = response.headers.get('set-cookie');
+    
+    if (setCookieHeaders) {
+      const cookieParts = setCookieHeaders.split(/,(?=[^;]*=)/);
+      for (const part of cookieParts) {
+        const match = part.match(/^([^=]+)=([^;]+)/);
+        if (match) {
+          cookies.push(`${match[1].trim()}=${match[2].trim()}`);
+        }
+      }
+    }
+    
+    return cookies.join('; ');
+  }
+
+  private decodeHtmlEntities(str: string): string {
+    return str
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&#039;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+  }
+
   async registerSendCode(email: string): Promise<{ token: string; email: string; message: string }> {
-    console.log('[API] ===== REGISTRATION STEP 1: SEND EMAIL =====');
+    console.log('[API] ===== REGISTRATION STEP 1: SEND EMAIL (Livewire) =====');
     console.log('[API] Email:', email);
 
     const signupUrl = 'https://uservault.net/auth/signup';
@@ -927,7 +956,6 @@ class ApiService {
 
     const signupResponse = await fetch(signupUrl, {
       method: 'GET',
-      credentials: 'include',
       headers: {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
@@ -977,32 +1005,17 @@ class ApiService {
     }
 
     let snapshot = '';
-    let componentId = '';
     
     const snapshotMatch = signupHtml.match(/wire:snapshot=["']([^"']+)["']/);
     if (snapshotMatch && snapshotMatch[1]) {
-      snapshot = snapshotMatch[1]
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, '&')
-        .replace(/&#039;/g, "'")
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+      snapshot = this.decodeHtmlEntities(snapshotMatch[1]);
       console.log('[API] Found wire:snapshot, length:', snapshot.length);
-    }
-    
-    const wireIdMatch = signupHtml.match(/wire:id=["']([^"']+)["']/);
-    if (wireIdMatch && wireIdMatch[1]) {
-      componentId = wireIdMatch[1];
-      console.log('[API] Found wire:id:', componentId);
     }
 
     if (!snapshot) {
       const initialDataMatch = signupHtml.match(/wire:initial-data=["']([^"']+)["']/);
       if (initialDataMatch && initialDataMatch[1]) {
-        snapshot = initialDataMatch[1]
-          .replace(/&quot;/g, '"')
-          .replace(/&amp;/g, '&');
+        snapshot = this.decodeHtmlEntities(initialDataMatch[1]);
         console.log('[API] Found wire:initial-data');
       }
     }
@@ -1012,9 +1025,8 @@ class ApiService {
       throw new Error('Could not initialize registration form. Please try again.');
     }
 
-    let parsedSnapshot: any;
     try {
-      parsedSnapshot = JSON.parse(snapshot);
+      const parsedSnapshot = JSON.parse(snapshot);
       console.log('[API] Parsed snapshot, memo.id:', parsedSnapshot?.memo?.id);
       console.log('[API] Parsed snapshot, memo.name:', parsedSnapshot?.memo?.name);
     } catch (e) {
@@ -1032,7 +1044,7 @@ class ApiService {
           calls: [
             {
               path: '',
-              method: 'submit',
+              method: 'submitForm',
               params: []
             }
           ],
@@ -1059,7 +1071,6 @@ class ApiService {
 
     const livewireResponse = await fetch(livewireUrl, {
       method: 'POST',
-      credentials: 'include',
       headers: livewireHeaders,
       body: JSON.stringify(livewireBody),
     });
@@ -1070,7 +1081,7 @@ class ApiService {
     console.log('[API] Livewire response content-type:', contentType);
 
     const livewireText = await livewireResponse.text();
-    console.log('[API] Livewire response (first 800):', livewireText.substring(0, 800));
+    console.log('[API] Livewire response (first 1000):', livewireText.substring(0, 1000));
 
     if (!livewireResponse.ok) {
       let errorMessage = 'Failed to send verification email';
@@ -1107,10 +1118,10 @@ class ApiService {
         }
       }
 
-      const memoErrors = livewireData?.components?.[0]?.snapshot;
-      if (memoErrors) {
+      const newSnapshot = livewireData?.components?.[0]?.snapshot;
+      if (newSnapshot) {
         try {
-          const snapParsed = JSON.parse(memoErrors);
+          const snapParsed = JSON.parse(newSnapshot);
           const errors = snapParsed?.memo?.errors;
           if (errors && Object.keys(errors).length > 0) {
             const firstErrorKey = Object.keys(errors)[0];
@@ -1242,54 +1253,187 @@ class ApiService {
   }
 
   async forgotPasswordSendCode(email: string): Promise<{ token: string; email: string; message: string }> {
-    console.log('[API] sending password reset code to:', email);
-    const url = `${this.baseUrl}/password/forgot`;
-    console.log('[API] FULL URL:', url);
-    console.log('[API] Method: POST');
+    console.log('[API] ===== FORGOT PASSWORD (Livewire) =====');
+    console.log('[API] Email:', email);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      credentials: 'include',
+    const forgotUrl = 'https://uservault.net/auth/forgot-password';
+    console.log('[API] Step 1: GET', forgotUrl);
+
+    const forgotResponse = await fetch(forgotUrl, {
+      method: 'GET',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
       },
-      body: JSON.stringify({ email }),
     });
 
-    console.log('[API] forgot-password response status:', response.status);
+    console.log('[API] Forgot page status:', forgotResponse.status);
 
-    const responseText = await response.text();
-    console.log('[API] raw forgot-password response:', responseText.substring(0, 500));
+    if (!forgotResponse.ok) {
+      throw new Error('Failed to load forgot password page');
+    }
 
-    if (!response.ok) {
-      console.error('[API] forgot-password error:', responseText);
-      let errorMessage = 'Failed to send reset link';
-      try {
-        const errorData = JSON.parse(responseText);
-        if (errorData.message) {
-          errorMessage = errorData.message;
-        } else if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.errors) {
-          const firstError = Object.values(errorData.errors)[0];
-          if (Array.isArray(firstError) && firstError.length > 0) {
-            errorMessage = firstError[0] as string;
+    const forgotHtml = await forgotResponse.text();
+    console.log('[API] Forgot page loaded, length:', forgotHtml.length);
+
+    let csrfToken = '';
+    
+    const csrfMetaMatch = forgotHtml.match(/<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/);
+    if (csrfMetaMatch && csrfMetaMatch[1]) {
+      csrfToken = csrfMetaMatch[1];
+      console.log('[API] Found CSRF token from meta tag');
+    }
+
+    if (!csrfToken) {
+      const altMetaMatch = forgotHtml.match(/content=["']([^"']+)["']\s+name=["']csrf-token["']/);
+      if (altMetaMatch && altMetaMatch[1]) {
+        csrfToken = altMetaMatch[1];
+      }
+    }
+
+    if (!csrfToken) {
+      const tokenInputMatch = forgotHtml.match(/<input[^>]*name=["']_token["'][^>]*value=["']([^"']+)["']/);
+      if (tokenInputMatch && tokenInputMatch[1]) {
+        csrfToken = tokenInputMatch[1];
+      }
+    }
+
+    if (!csrfToken) {
+      console.error('[API] No CSRF token found!');
+      throw new Error('Could not find CSRF token. Please try again.');
+    }
+
+    let snapshot = '';
+    
+    const snapshotMatch = forgotHtml.match(/wire:snapshot=["']([^"']+)["']/);
+    if (snapshotMatch && snapshotMatch[1]) {
+      snapshot = this.decodeHtmlEntities(snapshotMatch[1]);
+      console.log('[API] Found wire:snapshot');
+    }
+
+    if (!snapshot) {
+      const initialDataMatch = forgotHtml.match(/wire:initial-data=["']([^"']+)["']/);
+      if (initialDataMatch && initialDataMatch[1]) {
+        snapshot = this.decodeHtmlEntities(initialDataMatch[1]);
+      }
+    }
+
+    if (!snapshot) {
+      console.error('[API] No wire:snapshot found!');
+      throw new Error('Could not initialize forgot password form. Please try again.');
+    }
+
+    const livewireUrl = 'https://uservault.net/livewire/update';
+    console.log('[API] Step 2: POST', livewireUrl);
+
+    const livewireBody = {
+      components: [
+        {
+          snapshot: snapshot,
+          calls: [
+            {
+              path: '',
+              method: 'submitForm',
+              params: []
+            }
+          ],
+          updates: {
+            emailAddress: email
           }
         }
-      } catch {
-        errorMessage = responseText;
+      ]
+    };
+
+    const livewireHeaders: Record<string, string> = {
+      'Accept': '*/*',
+      'Content-Type': 'application/json',
+      'X-Livewire': '',
+      'X-CSRF-TOKEN': csrfToken,
+      'Origin': 'https://uservault.net',
+      'Referer': 'https://uservault.net/auth/forgot-password',
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
+    };
+
+    const livewireResponse = await fetch(livewireUrl, {
+      method: 'POST',
+      headers: livewireHeaders,
+      body: JSON.stringify(livewireBody),
+    });
+
+    console.log('[API] Livewire response status:', livewireResponse.status);
+
+    const livewireText = await livewireResponse.text();
+    console.log('[API] Livewire response (first 1000):', livewireText.substring(0, 1000));
+
+    if (!livewireResponse.ok) {
+      let errorMessage = 'Failed to send reset email';
+      const contentType = livewireResponse.headers.get('content-type') || '';
+      
+      if (contentType.includes('application/json')) {
+        try {
+          const errorData = JSON.parse(livewireText);
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch {
+          // ignore
+        }
+      } else if (livewireText.includes('CSRF token mismatch')) {
+        errorMessage = 'Session expired. Please try again.';
       }
+      
       throw new Error(errorMessage);
     }
 
-    const data = JSON.parse(responseText);
-    console.log('[API] forgot-password success:', JSON.stringify(data));
+    let token = '';
+    try {
+      const livewireData = JSON.parse(livewireText);
+      const effects = livewireData?.components?.[0]?.effects;
+      
+      if (effects?.redirect) {
+        console.log('[API] Found redirect:', effects.redirect);
+        const tokenMatch = effects.redirect.match(/forgot-success\/([^/\?]+)/);
+        if (tokenMatch && tokenMatch[1]) {
+          token = tokenMatch[1];
+        }
+      }
 
+      const newSnapshot = livewireData?.components?.[0]?.snapshot;
+      if (newSnapshot) {
+        try {
+          const snapParsed = JSON.parse(newSnapshot);
+          const errors = snapParsed?.memo?.errors;
+          if (errors && Object.keys(errors).length > 0) {
+            const firstErrorKey = Object.keys(errors)[0];
+            const firstError = errors[firstErrorKey];
+            if (Array.isArray(firstError) && firstError.length > 0) {
+              throw new Error(firstError[0] as string);
+            } else if (typeof firstError === 'string') {
+              throw new Error(firstError);
+            }
+          }
+        } catch (parseErr) {
+          if (parseErr instanceof Error && parseErr.message && !parseErr.message.includes('JSON')) {
+            throw parseErr;
+          }
+        }
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message && !e.message.includes('JSON')) {
+        throw e;
+      }
+    }
+
+    if (!token) {
+      token = 'pending_email_verification';
+    }
+
+    console.log('[API] Forgot password email sent successfully');
     return {
-      token: data?.data?.token,
-      email: data?.data?.email,
-      message: data?.data?.message,
+      token,
+      email,
+      message: 'Password reset email sent. Please check your inbox and click the link.',
     };
   }
 
