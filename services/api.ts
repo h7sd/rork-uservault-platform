@@ -920,8 +920,11 @@ class ApiService {
 
   async registerSendCode(email: string): Promise<{ token: string; email: string; message: string }> {
     console.log('[API] sending registration code to:', email);
+    const url = `${this.baseUrl}/register/send-code`;
+    console.log('[API] FULL URL:', url);
+    console.log('[API] Method: POST');
 
-    const response = await fetch(`${this.baseUrl}/register/send-code`, {
+    const response = await fetch(url, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -983,8 +986,11 @@ class ApiService {
     device_name: string;
   }): Promise<LoginResponse> {
     console.log('[API] verifying registration with token');
+    const url = `${this.baseUrl}/register/verify`;
+    console.log('[API] FULL URL:', url);
+    console.log('[API] Method: POST');
 
-    const response = await fetch(`${this.baseUrl}/register/verify`, {
+    const response = await fetch(url, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -1045,8 +1051,11 @@ class ApiService {
 
   async forgotPasswordSendCode(email: string): Promise<{ token: string; email: string; message: string }> {
     console.log('[API] sending password reset code to:', email);
+    const url = `${this.baseUrl}/password/forgot`;
+    console.log('[API] FULL URL:', url);
+    console.log('[API] Method: POST');
 
-    const response = await fetch(`${this.baseUrl}/password/forgot`, {
+    const response = await fetch(url, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -1096,8 +1105,11 @@ class ApiService {
     console.log('[API] resetting password with token');
 
     const deviceName = Platform.OS === 'web' ? 'web app' : `mobile app (${Platform.OS})`;
+    const url = `${this.baseUrl}/password/reset`;
+    console.log('[API] FULL URL:', url);
+    console.log('[API] Method: POST');
 
-    const response = await fetch(`${this.baseUrl}/password/reset`, {
+    const response = await fetch(url, {
       method: 'POST',
       credentials: 'include',
       headers: {
