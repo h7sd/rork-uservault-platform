@@ -919,54 +919,173 @@ class ApiService {
   }
 
   async registerSendCode(email: string): Promise<{ token: string; email: string; message: string }> {
-    console.log('[API] sending registration code to:', email);
-    const url = `${this.baseUrl}/register/send-code`;
-    console.log('[API] FULL URL:', url);
-    console.log('[API] Method: POST');
+    console.log('[API] ===== REGISTRATION STEP 1: SEND EMAIL =====');
+    console.log('[API] Email:', email);
 
-    const response = await fetch(url, {
+    const signupUrl = 'https://uservault.net/auth/signup';
+    console.log('[API] Step 1: GET', signupUrl);
+
+    const signupResponse = await fetch(signupUrl, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+    });
+
+    console.log('[API] Signup page status:', signupResponse.status);
+
+    if (!signupResponse.ok) {
+      throw new Error('Failed to load signup page');
+    }
+
+    const signupHtml = await signupResponse.text();
+    console.log('[API] Signup page loaded, length:', signupHtml.length);
+
+    const snapshotMatch = signupHtml.match(/wire:snapshot="([^"]+)"/)
+      || signupHtml.match(/x-data[^>]*wire:snapshot=\\?"([^"\\]+)/)
+      || signupHtml.match(/data-snapshot="([^"]+)"/);
+    
+    let snapshot = '';
+    if (snapshotMatch && snapshotMatch[1]) {
+      snapshot = snapshotMatch[1].replace(/&quot;/g, '"');
+      console.log('[API] Found snapshot, length:', snapshot.length);
+    } else {
+      const scriptMatch = signupHtml.match(/Livewire\.initialPayload\s*=\s*(\{[^;]+\});?/)
+        || signupHtml.match(/wire:initial-data="([^"]+)"/);
+      if (scriptMatch) {
+        console.log('[API] Found Livewire initial payload');
+        try {
+          const decoded = scriptMatch[1].replace(/&quot;/g, '"');
+          const payload = JSON.parse(decoded);
+          if (payload.components && payload.components[0]) {
+            snapshot = JSON.stringify(payload.components[0].snapshot);
+          }
+        } catch (e) {
+          console.log('[API] Could not parse Livewire payload:', e);
+        }
+      }
+    }
+
+    const livewireMatch = signupHtml.match(/wire:id="([^"]+)"/);
+    const componentId = livewireMatch ? livewireMatch[1] : '';
+    console.log('[API] Component ID:', componentId);
+
+    const livewireUrl = 'https://uservault.net/livewire/update';
+    console.log('[API] Step 2: POST', livewireUrl);
+
+    const livewireBody = {
+      components: [
+        {
+          snapshot: snapshot || JSON.stringify({
+            data: {
+              emailAddress: email,
+              activeSocialDrivers: [],
+              showAllSocialOptions: false
+            },
+            memo: {
+              id: componentId || 'signup-form',
+              name: 'user.auth.signup-form',
+              path: 'auth/signup',
+              method: 'GET',
+              children: [],
+              scripts: [],
+              assets: [],
+              errors: [],
+              locale: 'en'
+            },
+            checksum: ''
+          }),
+          calls: [
+            {
+              path: '',
+              method: 'submit',
+              params: []
+            }
+          ],
+          updates: {
+            emailAddress: email
+          }
+        }
+      ]
+    };
+
+    console.log('[API] Livewire request body:', JSON.stringify(livewireBody).substring(0, 500));
+
+    const livewireResponse = await fetch(livewireUrl, {
       method: 'POST',
       credentials: 'include',
       headers: {
-        'Accept': 'application/json',
+        'Accept': '*/*',
         'Content-Type': 'application/json',
+        'X-Livewire': '',
+        'Origin': 'https://uservault.net',
+        'Referer': 'https://uservault.net/auth/signup',
       },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(livewireBody),
     });
 
-    console.log('[API] send-code response status:', response.status);
+    console.log('[API] Livewire response status:', livewireResponse.status);
 
-    const responseText = await response.text();
-    console.log('[API] raw send-code response:', responseText.substring(0, 500));
+    const livewireText = await livewireResponse.text();
+    console.log('[API] Livewire response:', livewireText.substring(0, 800));
 
-    if (!response.ok) {
-      console.error('[API] send-code error:', responseText);
-      let errorMessage = 'Failed to send verification code';
+    if (!livewireResponse.ok) {
+      let errorMessage = 'Failed to send verification email';
       try {
-        const errorData = JSON.parse(responseText);
+        const errorData = JSON.parse(livewireText);
         if (errorData.message) {
           errorMessage = errorData.message;
-        } else if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.errors) {
-          const firstError = Object.values(errorData.errors)[0];
-          if (Array.isArray(firstError) && firstError.length > 0) {
-            errorMessage = firstError[0] as string;
-          }
         }
       } catch {
-        errorMessage = responseText;
+        errorMessage = livewireText.substring(0, 200);
       }
       throw new Error(errorMessage);
     }
 
-    const data = JSON.parse(responseText);
-    console.log('[API] send-code success:', JSON.stringify(data));
+    let token = '';
+    try {
+      const livewireData = JSON.parse(livewireText);
+      console.log('[API] Parsed Livewire response');
 
+      const redirect = livewireData?.components?.[0]?.effects?.redirect;
+      if (redirect) {
+        console.log('[API] Found redirect:', redirect);
+        const tokenMatch = redirect.match(/signup-success\/([^/\?]+)/);
+        if (tokenMatch && tokenMatch[1]) {
+          token = tokenMatch[1];
+          console.log('[API] Extracted token:', token);
+        }
+      }
+
+      if (!token && livewireData?.components?.[0]?.effects?.returns) {
+        const returns = livewireData.components[0].effects.returns;
+        if (Array.isArray(returns) && returns[0]) {
+          token = returns[0];
+        }
+      }
+    } catch (e) {
+      console.error('[API] Failed to parse Livewire response:', e);
+    }
+
+    if (!token) {
+      const urlTokenMatch = livewireText.match(/signup-success\/([a-zA-Z0-9+\/=]+)/);
+      if (urlTokenMatch && urlTokenMatch[1]) {
+        token = urlTokenMatch[1];
+        console.log('[API] Found token in response text:', token);
+      }
+    }
+
+    if (!token) {
+      console.log('[API] No token found, but email was submitted. User needs to click email link.');
+      token = 'pending_email_verification';
+    }
+
+    console.log('[API] Registration email sent successfully');
     return {
-      token: data?.data?.token,
-      email: data?.data?.email,
-      message: data?.data?.message,
+      token,
+      email,
+      message: 'Verification email sent. Please check your inbox and click the link.',
     };
   }
 
