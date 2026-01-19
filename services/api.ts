@@ -974,25 +974,34 @@ class ApiService {
 
     let csrfToken = '';
     
-    const csrfMetaMatch = signupHtml.match(/<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/);
-    if (csrfMetaMatch && csrfMetaMatch[1]) {
-      csrfToken = csrfMetaMatch[1];
-      console.log('[API] Found CSRF token from meta tag, length:', csrfToken.length);
-    }
+    // Try multiple patterns for CSRF token extraction
+    const csrfPatterns = [
+      /<meta[^>]*name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i,
+      /<meta[^>]*content=["']([^"']+)["'][^>]*name=["']csrf-token["']/i,
+      /name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["'][^>]*name=["']csrf-token["']/i,
+      /<input[^>]*name=["']_token["'][^>]*value=["']([^"']+)["']/i,
+      /<input[^>]*value=["']([^"']+)["'][^>]*name=["']_token["']/i,
+      /"csrf"\s*:\s*"([^"]+)"/i,
+      /'csrf'\s*:\s*'([^']+)'/i,
+      /csrf[_-]?token["']?\s*[=:]\s*["']([^"']+)["']/i,
+    ];
 
-    if (!csrfToken) {
-      const altMetaMatch = signupHtml.match(/content=["']([^"']+)["']\s+name=["']csrf-token["']/);
-      if (altMetaMatch && altMetaMatch[1]) {
-        csrfToken = altMetaMatch[1];
-        console.log('[API] Found CSRF token from alt meta tag');
+    for (const pattern of csrfPatterns) {
+      const match = signupHtml.match(pattern);
+      if (match && match[1] && match[1].length > 20) {
+        csrfToken = match[1];
+        console.log('[API] Found CSRF token with pattern:', pattern.toString().substring(0, 50));
+        break;
       }
     }
 
+    // Also try to find XSRF-TOKEN from cookies in the response or page
     if (!csrfToken) {
-      const tokenInputMatch = signupHtml.match(/<input[^>]*name=["']_token["'][^>]*value=["']([^"']+)["']/);
-      if (tokenInputMatch && tokenInputMatch[1]) {
-        csrfToken = tokenInputMatch[1];
-        console.log('[API] Found CSRF token from hidden input');
+      const xsrfMatch = signupHtml.match(/XSRF-TOKEN["']?\s*[=:]\s*["']?([^"';\s]+)/i);
+      if (xsrfMatch && xsrfMatch[1]) {
+        csrfToken = decodeURIComponent(xsrfMatch[1]);
+        console.log('[API] Found XSRF token from page');
       }
     }
 
@@ -1000,7 +1009,14 @@ class ApiService {
     
     if (!csrfToken) {
       console.error('[API] No CSRF token found in page!');
-      console.log('[API] Page snippet:', signupHtml.substring(0, 2000));
+      // Log more of the page for debugging
+      const metaSection = signupHtml.match(/<head[^>]*>[\s\S]*?<\/head>/i);
+      console.log('[API] Head section:', metaSection ? metaSection[0].substring(0, 3000) : 'not found');
+      console.log('[API] Looking for csrf in page...');
+      const csrfIndex = signupHtml.toLowerCase().indexOf('csrf');
+      if (csrfIndex > -1) {
+        console.log('[API] Found csrf at index', csrfIndex, ':', signupHtml.substring(csrfIndex, csrfIndex + 200));
+      }
       throw new Error('Could not find CSRF token. Please try again.');
     }
 
@@ -1279,28 +1295,41 @@ class ApiService {
 
     let csrfToken = '';
     
-    const csrfMetaMatch = forgotHtml.match(/<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/);
-    if (csrfMetaMatch && csrfMetaMatch[1]) {
-      csrfToken = csrfMetaMatch[1];
-      console.log('[API] Found CSRF token from meta tag');
-    }
+    const csrfPatterns = [
+      /<meta[^>]*name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i,
+      /<meta[^>]*content=["']([^"']+)["'][^>]*name=["']csrf-token["']/i,
+      /name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i,
+      /content=["']([^"']+)["'][^>]*name=["']csrf-token["']/i,
+      /<input[^>]*name=["']_token["'][^>]*value=["']([^"']+)["']/i,
+      /<input[^>]*value=["']([^"']+)["'][^>]*name=["']_token["']/i,
+      /"csrf"\s*:\s*"([^"]+)"/i,
+      /'csrf'\s*:\s*'([^']+)'/i,
+      /csrf[_-]?token["']?\s*[=:]\s*["']([^"']+)["']/i,
+    ];
 
-    if (!csrfToken) {
-      const altMetaMatch = forgotHtml.match(/content=["']([^"']+)["']\s+name=["']csrf-token["']/);
-      if (altMetaMatch && altMetaMatch[1]) {
-        csrfToken = altMetaMatch[1];
+    for (const pattern of csrfPatterns) {
+      const match = forgotHtml.match(pattern);
+      if (match && match[1] && match[1].length > 20) {
+        csrfToken = match[1];
+        console.log('[API] Found CSRF token with pattern');
+        break;
       }
     }
 
     if (!csrfToken) {
-      const tokenInputMatch = forgotHtml.match(/<input[^>]*name=["']_token["'][^>]*value=["']([^"']+)["']/);
-      if (tokenInputMatch && tokenInputMatch[1]) {
-        csrfToken = tokenInputMatch[1];
+      const xsrfMatch = forgotHtml.match(/XSRF-TOKEN["']?\s*[=:]\s*["']?([^"';\s]+)/i);
+      if (xsrfMatch && xsrfMatch[1]) {
+        csrfToken = decodeURIComponent(xsrfMatch[1]);
+        console.log('[API] Found XSRF token from page');
       }
     }
 
     if (!csrfToken) {
       console.error('[API] No CSRF token found!');
+      const csrfIndex = forgotHtml.toLowerCase().indexOf('csrf');
+      if (csrfIndex > -1) {
+        console.log('[API] Found csrf at index', csrfIndex, ':', forgotHtml.substring(csrfIndex, csrfIndex + 200));
+      }
       throw new Error('Could not find CSRF token. Please try again.');
     }
 
