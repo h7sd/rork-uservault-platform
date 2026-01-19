@@ -19,9 +19,7 @@ function isRecord(value: unknown): value is AnyRecord {
 function normalizeUser(input: unknown): User | null {
   if (!isRecord(input)) return null;
 
-  console.log('[Auth] ===== NORMALIZING USER =====');
-  console.log('[Auth] Input keys:', Object.keys(input));
-  console.log('[Auth] Full input:', JSON.stringify(input).slice(0, 1000));
+
 
   let id: number | null = null;
   const idCandidates = ['id', 'user_id', 'userId'];
@@ -29,13 +27,11 @@ function normalizeUser(input: unknown): User | null {
     const val = input[key];
     if (typeof val === 'number' && !isNaN(val) && val > 0) {
       id = val;
-      console.log(`[Auth] Found ID from '${key}':`, val);
       break;
     } else if (typeof val === 'string' && val.length > 0) {
       const parsed = parseInt(val, 10);
       if (!isNaN(parsed) && parsed > 0) {
         id = parsed;
-        console.log(`[Auth] Parsed ID from '${key}':`, parsed);
         break;
       }
     }
@@ -46,7 +42,6 @@ function normalizeUser(input: unknown): User | null {
   for (const key of emailCandidates) {
     if (typeof input[key] === 'string' && input[key].includes('@')) {
       email = input[key] as string;
-      console.log(`[Auth] Found email from '${key}':`, email);
       break;
     }
   }
@@ -58,7 +53,6 @@ function normalizeUser(input: unknown): User | null {
   for (const key of nameCandidates) {
     if (typeof input[key] === 'string' && (input[key] as string).length > 0) {
       name = input[key] as string;
-      console.log(`[Auth] Found name from '${key}':`, name);
       break;
     }
   }
@@ -73,17 +67,14 @@ function normalizeUser(input: unknown): User | null {
   for (const key of usernameCandidates) {
     if (typeof input[key] === 'string' && (input[key] as string).length > 0) {
       username = input[key] as string;
-      console.log(`[Auth] Found username from '${key}':`, username);
       break;
     }
   }
   if (!username && email && email !== 'unknown@example.com') {
     username = email.split('@')[0];
-    console.log('[Auth] Derived username from email:', username);
   }
   if (!username && id !== null) {
     username = `user_${id}`;
-    console.log('[Auth] Derived username from ID:', username);
   }
 
   if (id === null || isNaN(id)) {
@@ -100,25 +91,21 @@ function normalizeUser(input: unknown): User | null {
     for (const key of keys) {
       const val = input[key];
       if (typeof val === 'number') {
-        console.log(`[Auth] Found count from '${key}':`, val);
         return val;
       }
       if (typeof val === 'string') {
         const parsed = parseInt(val, 10);
         if (!isNaN(parsed)) {
-          console.log(`[Auth] Parsed count from '${key}':`, parsed);
           return parsed;
         }
       }
       if (isRecord(val)) {
         if (typeof (val as AnyRecord).raw === 'number') {
-          console.log(`[Auth] Found count.raw from '${key}':`, (val as AnyRecord).raw);
           return (val as AnyRecord).raw as number;
         }
         if (typeof (val as AnyRecord).formatted === 'string') {
           const parsed = parseInt((val as AnyRecord).formatted as string, 10);
           if (!isNaN(parsed)) {
-            console.log(`[Auth] Parsed count.formatted from '${key}':`, parsed);
             return parsed;
           }
         }
@@ -154,7 +141,6 @@ function normalizeUser(input: unknown): User | null {
   for (const key of avatarCandidates) {
     if (typeof input[key] === 'string' && (input[key] as string).length > 0) {
       avatar = input[key] as string;
-      console.log(`[Auth] Found avatar from '${key}':`, avatar.slice(0, 50));
       break;
     }
   }
@@ -164,7 +150,6 @@ function normalizeUser(input: unknown): User | null {
   for (const key of coverCandidates) {
     if (typeof input[key] === 'string' && (input[key] as string).length > 0) {
       cover = input[key] as string;
-      console.log(`[Auth] Found cover from '${key}':`, cover.slice(0, 50));
       break;
     }
   }
@@ -198,22 +183,10 @@ function normalizeUser(input: unknown): User | null {
     created_at,
   };
 
-  console.log('[Auth] ✓ normalizeUser SUCCESS:');
-  console.log('[Auth]   ID:', user.id);
-  console.log('[Auth]   Username:', user.username);
-  console.log('[Auth]   Name:', user.name);
-  console.log('[Auth]   Bio:', bio ? 'YES' : 'NO');
-  console.log('[Auth]   Avatar:', avatar ? 'YES' : 'NO');
-  console.log('[Auth]   Cover:', cover ? 'YES' : 'NO');
-  console.log('[Auth]   Posts:', posts_count);
-  console.log('[Auth]   Followers:', followers_count);
-  console.log('[Auth]   Following:', following_count);
-  console.log('[Auth] ===========================');
   return user;
 }
 
 function extractCurrentUser(payload: unknown): User | null {
-  console.log('[Auth] extractCurrentUser input:', JSON.stringify(payload).slice(0, 500));
   
   const direct = normalizeUser(payload);
   if (direct) return direct;
@@ -234,7 +207,6 @@ function extractCurrentUser(payload: unknown): User | null {
     }
   }
 
-  console.log('[Auth] All normalization attempts failed');
   return null;
 }
 

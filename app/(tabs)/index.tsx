@@ -124,11 +124,6 @@ function PostItem({ post }: { post: Post }) {
   
   const postImage = isVideo ? (thumbnailUrl || mediaUrl) : mediaUrl;
   const videoUrl = isVideo ? mediaUrl : null;
-  
-  console.log('[Home] Post:', post.id, 'mediaType:', mediaType, 'isVideo:', isVideo);
-  console.log('[Home] Post:', post.id, 'mediaUrl:', mediaUrl);
-  console.log('[Home] Post:', post.id, 'thumbnailUrl:', thumbnailUrl);
-  console.log('[Home] Post:', post.id, 'finalImage:', postImage, 'finalVideo:', videoUrl);
 
   const handleVideoPress = useCallback(() => {
     setShowFullscreenVideo(true);
@@ -145,7 +140,6 @@ function PostItem({ post }: { post: Post }) {
     <View style={styles.post}>
       <View style={styles.postHeader}>
         <TouchableOpacity style={styles.postUser} onPress={() => {
-          console.log('[Home] Navigate to user profile:', user.username || user.id);
           router.push(`/user/${user.username || user.id}`);
         }}>
           <Image 
@@ -190,9 +184,7 @@ function PostItem({ post }: { post: Post }) {
             source={{ uri: postImage }} 
             style={styles.postImage}
             resizeMode="cover"
-            onError={(error) => {
-              console.error('[Home] Image load error for post', post.id, ':', error.nativeEvent.error);
-              console.error('[Home] Failed image URL:', postImage);
+            onError={() => {
               setImageError(true);
               setImageLoading(false);
             }}
@@ -201,7 +193,6 @@ function PostItem({ post }: { post: Post }) {
               setImageError(false);
             }}
             onLoad={() => {
-              console.log('[Home] Image loaded successfully for post', post.id);
               setImageLoading(false);
               setImageError(false);
             }}
@@ -278,9 +269,7 @@ function PostItem({ post }: { post: Post }) {
               isLooping
               shouldPlay={true}
               useNativeControls={true}
-              onError={(error) => {
-                console.error('[Home] Fullscreen video error:', error);
-              }}
+              onError={() => {}}
             />
           )}
         </View>
@@ -403,11 +392,11 @@ function PostItem({ post }: { post: Post }) {
 }
 
 export default function HomeScreen() {
-  const { data: postsData, isLoading: postsLoading, refetch: refetchPosts, error: postsError } = useTimelineApi();
+  const { data: postsData, isLoading: postsLoading, refetch: refetchPosts } = useTimelineApi();
   const { data: storiesData, isLoading: storiesLoading, refetch: refetchStories } = useStoriesApi();
   const { refetch: refetchProfile } = useCurrentUserProfile();
   const { data: unreadCountData } = useUnreadNotificationCount();
-  const { currentUser, isAuthenticated } = useAuth();
+  const { currentUser } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
@@ -429,9 +418,7 @@ export default function HomeScreen() {
     }
   };
 
-  console.log('[Home] Posts data:', postsData?.data?.length, 'Loading:', postsLoading, 'Error:', postsError);
-  console.log('[Home] Stories data:', storiesData?.data?.length);
-  console.log('[Home] User authenticated:', isAuthenticated, 'User:', currentUser?.username);
+
 
   const posts = postsData?.data || [];
   const stories = storiesData?.data || [];
