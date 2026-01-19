@@ -239,9 +239,11 @@ export default function LoginScreen() {
   };
 
   const handleCreateAccount = () => {
+    console.log('[Login] Create account button pressed');
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    console.log('[Login] Navigating to /register');
     router.push('/register');
   };
 

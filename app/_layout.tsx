@@ -23,7 +23,7 @@ function RootLayoutNav() {
       console.log('[Layout] Splash screen already hidden:', error?.message);
     });
 
-    const inAuthGroup = segments[0] === 'login';
+    const inAuthGroup = segments[0] === 'login' || segments[0] === 'register';
 
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/login');
@@ -46,6 +46,7 @@ function RootLayoutNav() {
         },
       }}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="register" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen 
           name="modal" 
