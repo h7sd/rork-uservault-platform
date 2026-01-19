@@ -202,19 +202,24 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
+    console.log('[Register] Button pressed!');
+    
     if (!email.trim() || !password.trim() || !confirmPassword.trim() || !username.trim() || !firstName.trim()) {
+      console.log('[Register] Validation failed: missing required fields');
       shakeInput();
       setErrorMessage('Please fill in all required fields');
       return;
     }
 
     if (password !== confirmPassword) {
+      console.log('[Register] Validation failed: passwords do not match');
       shakeInput();
       setErrorMessage('Passwords do not match');
       return;
     }
 
     if (password.length < 8) {
+      console.log('[Register] Validation failed: password too short');
       shakeInput();
       setErrorMessage('Password must be at least 8 characters');
       return;
@@ -225,17 +230,20 @@ export default function RegisterScreen() {
     const year = parseInt(birthYear, 10);
 
     if (!birthDay || !birthMonth || !birthYear || isNaN(day) || isNaN(month) || isNaN(year)) {
+      console.log('[Register] Validation failed: invalid birth date');
       shakeInput();
       setErrorMessage('Please enter a valid birth date');
       return;
     }
 
     if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900 || year > new Date().getFullYear() - 13) {
+      console.log('[Register] Validation failed: birth date out of range');
       shakeInput();
       setErrorMessage('Invalid birth date. You must be at least 13 years old.');
       return;
     }
 
+    console.log('[Register] All validations passed, starting registration...');
     setIsLoading(true);
     setErrorMessage('');
     animateButtonPress();
@@ -245,7 +253,12 @@ export default function RegisterScreen() {
     }
     
     try {
-      console.log('[Register] Attempting registration...');
+      console.log('[Register] Calling register function with data:', {
+        email: email.trim(),
+        username: username.trim(),
+        first_name: firstName.trim(),
+      });
+      
       const result = await register({
         email: email.trim(),
         password,
@@ -261,6 +274,8 @@ export default function RegisterScreen() {
         city: city.trim() || undefined,
       });
       
+      console.log('[Register] Register function returned:', result);
+      
       if (result.success) {
         console.log('[Register] Success! User:', result.user);
         const displayUsername = result.user?.username || username;
@@ -270,16 +285,18 @@ export default function RegisterScreen() {
       } else {
         console.error('[Register] Failed:', result.error);
         shakeInput();
-        setErrorMessage(result.error || 'Registration failed');
-        Alert.alert('Registration failed', result.error || 'Please check your information.');
+        const errorMsg = result.error || 'Registration failed';
+        setErrorMessage(errorMsg);
+        Alert.alert('Registration failed', errorMsg);
       }
     } catch (error) {
-      console.error('[Register] Error:', error);
+      console.error('[Register] Exception caught:', error);
       shakeInput();
       const message = error instanceof Error ? error.message : 'An error occurred';
       setErrorMessage(message);
       Alert.alert('Error', message);
     } finally {
+      console.log('[Register] Setting isLoading to false');
       setIsLoading(false);
     }
   };
