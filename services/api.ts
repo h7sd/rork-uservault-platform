@@ -927,9 +927,9 @@ class ApiService {
 
     const signupResponse = await fetch(signupUrl, {
       method: 'GET',
-      credentials: 'include',
       headers: {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
       },
     });
 
@@ -939,37 +939,91 @@ class ApiService {
       throw new Error('Failed to load signup page');
     }
 
+    const setCookieHeaders = signupResponse.headers.get('set-cookie') || '';
+    console.log('[API] Set-Cookie headers present:', !!setCookieHeaders);
+    
+    let xsrfToken = '';
+    let sessionCookie = '';
+    
+    const xsrfMatch = setCookieHeaders.match(/XSRF-TOKEN=([^;]+)/);
+    if (xsrfMatch) {
+      xsrfToken = decodeURIComponent(xsrfMatch[1]);
+      console.log('[API] Found XSRF token');
+    }
+    
+    const sessionMatch = setCookieHeaders.match(/user_vault_session=([^;]+)/);
+    if (sessionMatch) {
+      sessionCookie = sessionMatch[1];
+      console.log('[API] Found session cookie');
+    }
+
     const signupHtml = await signupResponse.text();
     console.log('[API] Signup page loaded, length:', signupHtml.length);
 
-    const snapshotMatch = signupHtml.match(/wire:snapshot="([^"]+)"/)
-      || signupHtml.match(/x-data[^>]*wire:snapshot=\\?"([^"\\]+)/)
-      || signupHtml.match(/data-snapshot="([^"]+)"/);
-    
     let snapshot = '';
+    let componentId = '';
+    
+    const snapshotMatch = signupHtml.match(/wire:snapshot="([^"]+)"/);
     if (snapshotMatch && snapshotMatch[1]) {
-      snapshot = snapshotMatch[1].replace(/&quot;/g, '"');
-      console.log('[API] Found snapshot, length:', snapshot.length);
-    } else {
-      const scriptMatch = signupHtml.match(/Livewire\.initialPayload\s*=\s*(\{[^;]+\});?/)
-        || signupHtml.match(/wire:initial-data="([^"]+)"/);
-      if (scriptMatch) {
-        console.log('[API] Found Livewire initial payload');
-        try {
-          const decoded = scriptMatch[1].replace(/&quot;/g, '"');
-          const payload = JSON.parse(decoded);
-          if (payload.components && payload.components[0]) {
-            snapshot = JSON.stringify(payload.components[0].snapshot);
-          }
-        } catch (e) {
-          console.log('[API] Could not parse Livewire payload:', e);
-        }
+      snapshot = snapshotMatch[1]
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+        .replace(/&#039;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+      console.log('[API] Found wire:snapshot, length:', snapshot.length);
+    }
+    
+    const wireIdMatch = signupHtml.match(/wire:id="([^"]+)"/);
+    if (wireIdMatch && wireIdMatch[1]) {
+      componentId = wireIdMatch[1];
+      console.log('[API] Found wire:id:', componentId);
+    }
+
+    if (!snapshot) {
+      const initialDataMatch = signupHtml.match(/wire:initial-data="([^"]+)"/);
+      if (initialDataMatch && initialDataMatch[1]) {
+        snapshot = initialDataMatch[1]
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&');
+        console.log('[API] Found wire:initial-data');
       }
     }
 
-    const livewireMatch = signupHtml.match(/wire:id="([^"]+)"/);
-    const componentId = livewireMatch ? livewireMatch[1] : '';
-    console.log('[API] Component ID:', componentId);
+    if (!snapshot) {
+      console.log('[API] No snapshot found, creating minimal snapshot');
+      const snapshotObj = {
+        data: {
+          emailAddress: '',
+          activeSocialDrivers: [],
+          showAllSocialOptions: false
+        },
+        memo: {
+          id: componentId || 'signup-form',
+          name: 'user.auth.signup-form',
+          path: 'auth/signup',
+          method: 'GET',
+          children: [],
+          scripts: [],
+          assets: [],
+          errors: [],
+          locale: 'en'
+        },
+        checksum: ''
+      };
+      snapshot = JSON.stringify(snapshotObj);
+    }
+
+    let parsedSnapshot: any;
+    try {
+      parsedSnapshot = JSON.parse(snapshot);
+      parsedSnapshot.data = parsedSnapshot.data || {};
+      parsedSnapshot.data.emailAddress = email;
+      snapshot = JSON.stringify(parsedSnapshot);
+      console.log('[API] Updated snapshot with email');
+    } catch (e) {
+      console.log('[API] Could not parse snapshot:', e);
+    }
 
     const livewireUrl = 'https://uservault.net/livewire/update';
     console.log('[API] Step 2: POST', livewireUrl);
@@ -977,25 +1031,7 @@ class ApiService {
     const livewireBody = {
       components: [
         {
-          snapshot: snapshot || JSON.stringify({
-            data: {
-              emailAddress: email,
-              activeSocialDrivers: [],
-              showAllSocialOptions: false
-            },
-            memo: {
-              id: componentId || 'signup-form',
-              name: 'user.auth.signup-form',
-              path: 'auth/signup',
-              method: 'GET',
-              children: [],
-              scripts: [],
-              assets: [],
-              errors: [],
-              locale: 'en'
-            },
-            checksum: ''
-          }),
+          snapshot: snapshot,
           calls: [
             {
               path: '',
@@ -1010,37 +1046,78 @@ class ApiService {
       ]
     };
 
-    console.log('[API] Livewire request body:', JSON.stringify(livewireBody).substring(0, 500));
+    console.log('[API] Livewire body structure ready');
+
+    const cookieHeader = [
+      xsrfToken ? `XSRF-TOKEN=${encodeURIComponent(xsrfToken)}` : '',
+      sessionCookie ? `user_vault_session=${sessionCookie}` : '',
+    ].filter(Boolean).join('; ');
+
+    const livewireHeaders: Record<string, string> = {
+      'Accept': 'application/json, text/plain, */*',
+      'Content-Type': 'application/json',
+      'X-Livewire': '',
+      'Origin': 'https://uservault.net',
+      'Referer': 'https://uservault.net/auth/signup',
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+    };
+
+    if (cookieHeader) {
+      livewireHeaders['Cookie'] = cookieHeader;
+    }
+
+    if (xsrfToken) {
+      livewireHeaders['X-XSRF-TOKEN'] = xsrfToken;
+    }
+
+    console.log('[API] Sending Livewire request...');
 
     const livewireResponse = await fetch(livewireUrl, {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Accept': '*/*',
-        'Content-Type': 'application/json',
-        'X-Livewire': '',
-        'Origin': 'https://uservault.net',
-        'Referer': 'https://uservault.net/auth/signup',
-      },
+      headers: livewireHeaders,
       body: JSON.stringify(livewireBody),
     });
 
     console.log('[API] Livewire response status:', livewireResponse.status);
+    
+    const contentType = livewireResponse.headers.get('content-type') || '';
+    console.log('[API] Livewire response content-type:', contentType);
 
     const livewireText = await livewireResponse.text();
-    console.log('[API] Livewire response:', livewireText.substring(0, 800));
+    console.log('[API] Livewire response (first 500):', livewireText.substring(0, 500));
 
     if (!livewireResponse.ok) {
       let errorMessage = 'Failed to send verification email';
-      try {
-        const errorData = JSON.parse(livewireText);
-        if (errorData.message) {
-          errorMessage = errorData.message;
+      
+      if (contentType.includes('application/json')) {
+        try {
+          const errorData = JSON.parse(livewireText);
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        errorMessage = livewireText.substring(0, 200);
+      } else if (livewireText.includes('<!DOCTYPE') || livewireText.includes('<html')) {
+        errorMessage = 'Server returned HTML instead of JSON. The registration page may have changed.';
       }
+      
       throw new Error(errorMessage);
+    }
+
+    if (!contentType.includes('application/json')) {
+      console.log('[API] Response is not JSON, checking for success indicators');
+      
+      if (livewireText.includes('signup-success') || livewireText.includes('verification')) {
+        console.log('[API] Found success indicators in HTML response');
+        return {
+          token: 'pending_email_verification',
+          email,
+          message: 'Verification email sent. Please check your inbox and click the link.',
+        };
+      }
+      
+      throw new Error('Unexpected response from server. Please try again.');
     }
 
     let token = '';
@@ -1058,6 +1135,14 @@ class ApiService {
         }
       }
 
+      const errors = livewireData?.components?.[0]?.effects?.errors;
+      if (errors && Object.keys(errors).length > 0) {
+        const firstError = Object.values(errors)[0];
+        if (Array.isArray(firstError) && firstError.length > 0) {
+          throw new Error(firstError[0] as string);
+        }
+      }
+
       if (!token && livewireData?.components?.[0]?.effects?.returns) {
         const returns = livewireData.components[0].effects.returns;
         if (Array.isArray(returns) && returns[0]) {
@@ -1065,6 +1150,9 @@ class ApiService {
         }
       }
     } catch (e) {
+      if (e instanceof Error && !e.message.includes('Unexpected')) {
+        throw e;
+      }
       console.error('[API] Failed to parse Livewire response:', e);
     }
 
@@ -1077,7 +1165,7 @@ class ApiService {
     }
 
     if (!token) {
-      console.log('[API] No token found, but email was submitted. User needs to click email link.');
+      console.log('[API] No token found, but request succeeded. User needs to click email link.');
       token = 'pending_email_verification';
     }
 
