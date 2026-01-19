@@ -956,6 +956,7 @@ class ApiService {
 
     const signupResponse = await fetch(signupUrl, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
@@ -971,10 +972,24 @@ class ApiService {
 
     const signupHtml = await signupResponse.text();
     console.log('[API] Signup page loaded, length:', signupHtml.length);
+    console.log('[API] Page preview:', signupHtml.substring(0, 500));
 
     let csrfToken = '';
+    let xsrfToken = '';
     
-    // Try multiple patterns for CSRF token extraction
+    // Extract XSRF-TOKEN from Set-Cookie header
+    const setCookieHeader = signupResponse.headers.get('set-cookie');
+    console.log('[API] Set-Cookie header:', setCookieHeader?.substring(0, 500));
+    
+    if (setCookieHeader) {
+      const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/);
+      if (xsrfMatch && xsrfMatch[1]) {
+        xsrfToken = decodeURIComponent(xsrfMatch[1]);
+        console.log('[API] Found XSRF-TOKEN from cookie, length:', xsrfToken.length);
+      }
+    }
+    
+    // Try multiple patterns for CSRF token extraction from HTML
     const csrfPatterns = [
       /<meta[^>]*name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i,
       /<meta[^>]*content=["']([^"']+)["'][^>]*name=["']csrf-token["']/i,
@@ -985,49 +1000,49 @@ class ApiService {
       /"csrf"\s*:\s*"([^"]+)"/i,
       /'csrf'\s*:\s*'([^']+)'/i,
       /csrf[_-]?token["']?\s*[=:]\s*["']([^"']+)["']/i,
+      /"csrfToken"\s*:\s*"([^"]+)"/i,
     ];
 
     for (const pattern of csrfPatterns) {
       const match = signupHtml.match(pattern);
       if (match && match[1] && match[1].length > 20) {
         csrfToken = match[1];
-        console.log('[API] Found CSRF token with pattern:', pattern.toString().substring(0, 50));
+        console.log('[API] Found CSRF token in HTML with pattern:', pattern.toString().substring(0, 50));
         break;
       }
     }
 
-    // Also try to find XSRF-TOKEN from cookies in the response or page
-    if (!csrfToken) {
-      const xsrfMatch = signupHtml.match(/XSRF-TOKEN["']?\s*[=:]\s*["']?([^"';\s]+)/i);
-      if (xsrfMatch && xsrfMatch[1]) {
-        csrfToken = decodeURIComponent(xsrfMatch[1]);
-        console.log('[API] Found XSRF token from page');
-      }
+    // Use XSRF token from cookie if no CSRF in HTML
+    if (!csrfToken && xsrfToken) {
+      csrfToken = xsrfToken;
+      console.log('[API] Using XSRF-TOKEN from cookie as CSRF token');
     }
 
     console.log('[API] CSRF token found:', !!csrfToken, 'length:', csrfToken.length);
     
     if (!csrfToken) {
-      console.error('[API] No CSRF token found in page!');
-      // Log more of the page for debugging
-      const metaSection = signupHtml.match(/<head[^>]*>[\s\S]*?<\/head>/i);
-      console.log('[API] Head section:', metaSection ? metaSection[0].substring(0, 3000) : 'not found');
-      console.log('[API] Looking for csrf in page...');
-      const csrfIndex = signupHtml.toLowerCase().indexOf('csrf');
-      if (csrfIndex > -1) {
-        console.log('[API] Found csrf at index', csrfIndex, ':', signupHtml.substring(csrfIndex, csrfIndex + 200));
+      console.error('[API] No CSRF token found!');
+      // Log head section for debugging
+      const headMatch = signupHtml.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+      if (headMatch) {
+        console.log('[API] Head section (first 2000):', headMatch[1].substring(0, 2000));
       }
+      // Search for any token-like strings
+      const tokenSearch = signupHtml.match(/token["']?\s*[=:]\s*["']([a-zA-Z0-9]{20,})["']/gi);
+      console.log('[API] Token-like strings found:', tokenSearch?.slice(0, 3));
       throw new Error('Could not find CSRF token. Please try again.');
     }
 
     let snapshot = '';
     
+    // Try wire:snapshot first
     const snapshotMatch = signupHtml.match(/wire:snapshot=["']([^"']+)["']/);
     if (snapshotMatch && snapshotMatch[1]) {
       snapshot = this.decodeHtmlEntities(snapshotMatch[1]);
       console.log('[API] Found wire:snapshot, length:', snapshot.length);
     }
 
+    // Try wire:initial-data
     if (!snapshot) {
       const initialDataMatch = signupHtml.match(/wire:initial-data=["']([^"']+)["']/);
       if (initialDataMatch && initialDataMatch[1]) {
@@ -1036,17 +1051,31 @@ class ApiService {
       }
     }
 
+    // Try x-data with Livewire
+    if (!snapshot) {
+      const xDataMatch = signupHtml.match(/x-data=["']\s*\{[^}]*snapshot\s*:\s*["']([^"']+)["']/);
+      if (xDataMatch && xDataMatch[1]) {
+        snapshot = this.decodeHtmlEntities(xDataMatch[1]);
+        console.log('[API] Found snapshot in x-data');
+      }
+    }
+
     if (!snapshot) {
       console.error('[API] No wire:snapshot found!');
+      // Look for any wire: attributes
+      const wireAttrs = signupHtml.match(/wire:[a-z-]+=["'][^"']+["']/gi);
+      console.log('[API] Wire attributes found:', wireAttrs?.slice(0, 5));
       throw new Error('Could not initialize registration form. Please try again.');
     }
 
+    let parsedSnapshot: any;
     try {
-      const parsedSnapshot = JSON.parse(snapshot);
+      parsedSnapshot = JSON.parse(snapshot);
       console.log('[API] Parsed snapshot, memo.id:', parsedSnapshot?.memo?.id);
       console.log('[API] Parsed snapshot, memo.name:', parsedSnapshot?.memo?.name);
     } catch (e) {
       console.error('[API] Could not parse snapshot:', e);
+      console.log('[API] Snapshot preview:', snapshot.substring(0, 500));
       throw new Error('Invalid registration form data. Please try again.');
     }
 
@@ -1074,19 +1103,25 @@ class ApiService {
     console.log('[API] Livewire request body prepared');
 
     const livewireHeaders: Record<string, string> = {
-      'Accept': '*/*',
+      'Accept': 'application/json, text/html, application/xhtml+xml',
       'Content-Type': 'application/json',
-      'X-Livewire': '',
+      'X-Livewire': 'true',
       'X-CSRF-TOKEN': csrfToken,
       'Origin': 'https://uservault.net',
       'Referer': 'https://uservault.net/auth/signup',
       'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
     };
 
-    console.log('[API] Sending Livewire request...');
+    // Add X-XSRF-TOKEN if we have it
+    if (xsrfToken) {
+      livewireHeaders['X-XSRF-TOKEN'] = xsrfToken;
+    }
+
+    console.log('[API] Sending Livewire request with headers:', Object.keys(livewireHeaders));
 
     const livewireResponse = await fetch(livewireUrl, {
       method: 'POST',
+      credentials: 'include',
       headers: livewireHeaders,
       body: JSON.stringify(livewireBody),
     });
@@ -1113,6 +1148,8 @@ class ApiService {
         }
       } else if (livewireText.includes('CSRF token mismatch')) {
         errorMessage = 'Session expired. Please try again.';
+      } else if (livewireText.includes('Page Expired') || livewireText.includes('419')) {
+        errorMessage = 'Session expired. Please try again.';
       }
       
       throw new Error(errorMessage);
@@ -1134,6 +1171,7 @@ class ApiService {
         }
       }
 
+      // Check for errors in the new snapshot
       const newSnapshot = livewireData?.components?.[0]?.snapshot;
       if (newSnapshot) {
         try {
@@ -1155,10 +1193,14 @@ class ApiService {
         }
       }
 
-      if (effects?.returns) {
-        const returns = effects.returns;
-        if (Array.isArray(returns) && returns[0] === null && effects.redirect) {
-          console.log('[API] Success: returns=[null] with redirect');
+      // Also check effects.errors directly
+      if (effects?.errors) {
+        const errorKeys = Object.keys(effects.errors);
+        if (errorKeys.length > 0) {
+          const firstError = effects.errors[errorKeys[0]];
+          if (Array.isArray(firstError) && firstError.length > 0) {
+            throw new Error(firstError[0] as string);
+          }
         }
       }
     } catch (e) {
@@ -1277,6 +1319,7 @@ class ApiService {
 
     const forgotResponse = await fetch(forgotUrl, {
       method: 'GET',
+      credentials: 'include',
       headers: {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
@@ -1294,6 +1337,17 @@ class ApiService {
     console.log('[API] Forgot page loaded, length:', forgotHtml.length);
 
     let csrfToken = '';
+    let xsrfToken = '';
+    
+    // Extract XSRF-TOKEN from Set-Cookie header
+    const setCookieHeader = forgotResponse.headers.get('set-cookie');
+    if (setCookieHeader) {
+      const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/);
+      if (xsrfMatch && xsrfMatch[1]) {
+        xsrfToken = decodeURIComponent(xsrfMatch[1]);
+        console.log('[API] Found XSRF-TOKEN from cookie');
+      }
+    }
     
     const csrfPatterns = [
       /<meta[^>]*name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i,
@@ -1311,25 +1365,18 @@ class ApiService {
       const match = forgotHtml.match(pattern);
       if (match && match[1] && match[1].length > 20) {
         csrfToken = match[1];
-        console.log('[API] Found CSRF token with pattern');
+        console.log('[API] Found CSRF token in HTML');
         break;
       }
     }
 
-    if (!csrfToken) {
-      const xsrfMatch = forgotHtml.match(/XSRF-TOKEN["']?\s*[=:]\s*["']?([^"';\s]+)/i);
-      if (xsrfMatch && xsrfMatch[1]) {
-        csrfToken = decodeURIComponent(xsrfMatch[1]);
-        console.log('[API] Found XSRF token from page');
-      }
+    if (!csrfToken && xsrfToken) {
+      csrfToken = xsrfToken;
+      console.log('[API] Using XSRF-TOKEN from cookie as CSRF token');
     }
 
     if (!csrfToken) {
       console.error('[API] No CSRF token found!');
-      const csrfIndex = forgotHtml.toLowerCase().indexOf('csrf');
-      if (csrfIndex > -1) {
-        console.log('[API] Found csrf at index', csrfIndex, ':', forgotHtml.substring(csrfIndex, csrfIndex + 200));
-      }
       throw new Error('Could not find CSRF token. Please try again.');
     }
 
@@ -1375,17 +1422,22 @@ class ApiService {
     };
 
     const livewireHeaders: Record<string, string> = {
-      'Accept': '*/*',
+      'Accept': 'application/json, text/html, application/xhtml+xml',
       'Content-Type': 'application/json',
-      'X-Livewire': '',
+      'X-Livewire': 'true',
       'X-CSRF-TOKEN': csrfToken,
       'Origin': 'https://uservault.net',
       'Referer': 'https://uservault.net/auth/forgot-password',
       'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36',
     };
 
+    if (xsrfToken) {
+      livewireHeaders['X-XSRF-TOKEN'] = xsrfToken;
+    }
+
     const livewireResponse = await fetch(livewireUrl, {
       method: 'POST',
+      credentials: 'include',
       headers: livewireHeaders,
       body: JSON.stringify(livewireBody),
     });
@@ -1408,7 +1460,7 @@ class ApiService {
         } catch {
           // ignore
         }
-      } else if (livewireText.includes('CSRF token mismatch')) {
+      } else if (livewireText.includes('CSRF token mismatch') || livewireText.includes('Page Expired')) {
         errorMessage = 'Session expired. Please try again.';
       }
       
@@ -1445,6 +1497,16 @@ class ApiService {
         } catch (parseErr) {
           if (parseErr instanceof Error && parseErr.message && !parseErr.message.includes('JSON')) {
             throw parseErr;
+          }
+        }
+      }
+
+      if (effects?.errors) {
+        const errorKeys = Object.keys(effects.errors);
+        if (errorKeys.length > 0) {
+          const firstError = effects.errors[errorKeys[0]];
+          if (Array.isArray(firstError) && firstError.length > 0) {
+            throw new Error(firstError[0] as string);
           }
         }
       }
