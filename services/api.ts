@@ -921,11 +921,13 @@ class ApiService {
   async registerSendCode(email: string): Promise<{ token: string; email: string; message: string }> {
     console.log('[API] sending registration code to:', email);
 
-    const response = await fetch(`${this.baseUrl}/register/send-code?email=${encodeURIComponent(email)}`, {
-      method: 'GET',
+    const response = await fetch(`${this.baseUrl}/register/send-code`, {
+      method: 'POST',
       headers: {
         'Accept': 'application/json',
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ email }),
     });
 
     console.log('[API] send-code response status:', response.status);
