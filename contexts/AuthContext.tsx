@@ -343,8 +343,23 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     loadUser();
   }, [loadUser]);
 
-  const register = useCallback(async (data: {
-    email: string;
+  const registerSendCode = useCallback(async (email: string) => {
+    try {
+      console.log('[Auth] Sending registration code to:', email);
+      const result = await api.registerSendCode(email);
+      console.log('[Auth] Registration code sent successfully');
+      return { success: true, token: result.token, email: result.email, message: result.message };
+    } catch (error) {
+      console.error('[Auth] Send code error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to send verification code',
+      };
+    }
+  }, []);
+
+  const registerVerify = useCallback(async (data: {
+    token: string;
     password: string;
     password_confirmation: string;
     username: string;
@@ -358,10 +373,10 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     city?: string;
   }) => {
     try {
-      console.log('[Auth] Registering new user:', data.email);
+      console.log('[Auth] Verifying registration with token');
 
       const deviceName = `mobile app (${Platform.OS})`;
-      const { plainTextToken: token, user: registerUser } = await api.register({
+      const { plainTextToken: token, user: registerUser } = await api.registerVerify({
         ...data,
         device_name: deviceName,
       });
@@ -418,7 +433,7 @@ export const [AuthContext, useAuth] = createContextHook(() => {
         name: data.first_name,
         first_name: data.first_name,
         last_name: data.last_name,
-        email: data.email,
+        email: '',
         type: 'reader',
         followers_count: 0,
         following_count: 0,
@@ -440,6 +455,74 @@ export const [AuthContext, useAuth] = createContextHook(() => {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Registration failed',
+      };
+    }
+  }, [fetchUserProfile]);
+
+  const forgotPassword = useCallback(async (email: string) => {
+    try {
+      console.log('[Auth] Sending password reset code to:', email);
+      const result = await api.forgotPasswordSendCode(email);
+      console.log('[Auth] Password reset code sent successfully');
+      return { success: true, token: result.token, email: result.email, message: result.message };
+    } catch (error) {
+      console.error('[Auth] Forgot password error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to send reset link',
+      };
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (token: string, password: string, passwordConfirmation: string) => {
+    try {
+      console.log('[Auth] Resetting password with token');
+      const { plainTextToken: authToken, user: resetUser } = await api.resetPassword(token, password, passwordConfirmation);
+      
+      if (!authToken) {
+        return { success: false, error: 'No token received' };
+      }
+
+      console.log('[Auth] Token received, storing...');
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, authToken);
+      setAuthToken(authToken);
+
+      let user: User | null = null;
+      let resolvedUsername: string | null = null;
+
+      if (resetUser?.username && typeof resetUser.username === 'string') {
+        resolvedUsername = resetUser.username;
+        api.setUsername(resolvedUsername);
+        await AsyncStorage.setItem(USERNAME_KEY, resolvedUsername);
+        setStoredUsername(resolvedUsername);
+      }
+
+      if (resetUser?.id) {
+        const id = typeof resetUser.id === 'number' ? resetUser.id : parseInt(resetUser.id, 10);
+        if (!isNaN(id) && id > 0) {
+          api.setUserId(id);
+          await AsyncStorage.setItem(USER_ID_KEY, String(id));
+        }
+      }
+
+      if (resolvedUsername) {
+        user = await fetchUserProfile(resolvedUsername);
+      }
+
+      if (user) {
+        setCurrentUser(user);
+        await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+        await AsyncStorage.setItem(USER_ID_KEY, String(user.id));
+        await AsyncStorage.setItem(USERNAME_KEY, user.username);
+        return { success: true, user };
+      }
+
+      return { success: false, error: 'Could not load user profile' };
+    } catch (error) {
+      console.error('[Auth] Reset password error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Password reset failed',
       };
     }
   }, [fetchUserProfile]);
@@ -609,7 +692,10 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     isLoading,
     authToken,
     login,
-    register,
+    registerSendCode,
+    registerVerify,
+    forgotPassword,
+    resetPassword,
     logout,
     updateUser,
     isAuthenticated,

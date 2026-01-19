@@ -918,8 +918,56 @@ class ApiService {
     return this.post('/follows/accept/user', { id: userId });
   }
 
-  async register(data: {
-    email: string;
+  async registerSendCode(email: string): Promise<{ token: string; email: string; message: string }> {
+    console.log('[API] sending registration code to:', email);
+
+    const response = await fetch(`${this.baseUrl}/register/send-code`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    console.log('[API] send-code response status:', response.status);
+
+    const responseText = await response.text();
+    console.log('[API] raw send-code response:', responseText.substring(0, 500));
+
+    if (!response.ok) {
+      console.error('[API] send-code error:', responseText);
+      let errorMessage = 'Failed to send verification code';
+      try {
+        const errorData = JSON.parse(responseText);
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.errors) {
+          const firstError = Object.values(errorData.errors)[0];
+          if (Array.isArray(firstError) && firstError.length > 0) {
+            errorMessage = firstError[0] as string;
+          }
+        }
+      } catch {
+        errorMessage = responseText;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = JSON.parse(responseText);
+    console.log('[API] send-code success:', JSON.stringify(data));
+
+    return {
+      token: data?.data?.token,
+      email: data?.data?.email,
+      message: data?.data?.message,
+    };
+  }
+
+  async registerVerify(data: {
+    token: string;
     password: string;
     password_confirmation: string;
     username: string;
@@ -933,9 +981,9 @@ class ApiService {
     city?: string;
     device_name: string;
   }): Promise<LoginResponse> {
-    console.log('[API] registering new user:', data.email);
+    console.log('[API] verifying registration with token');
 
-    const response = await fetch(`${this.baseUrl}/register`, {
+    const response = await fetch(`${this.baseUrl}/register/verify`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -944,13 +992,13 @@ class ApiService {
       body: JSON.stringify(data),
     });
 
-    console.log('[API] register response status:', response.status);
+    console.log('[API] verify response status:', response.status);
 
     const responseText = await response.text();
-    console.log('[API] raw register response:', responseText.substring(0, 500));
+    console.log('[API] raw verify response:', responseText.substring(0, 500));
 
     if (!response.ok) {
-      console.error('[API] registration error:', responseText);
+      console.error('[API] verification error:', responseText);
       let errorMessage = 'Registration failed';
       try {
         const errorData = JSON.parse(responseText);
@@ -971,7 +1019,7 @@ class ApiService {
     }
 
     const registerData = JSON.parse(responseText);
-    console.log('[API] register data:', JSON.stringify(registerData));
+    console.log('[API] verification data:', JSON.stringify(registerData));
 
     const token = registerData?.data?.token;
     const userData = registerData?.data?.user;
@@ -991,6 +1039,122 @@ class ApiService {
     }
 
     return { plainTextToken: token, user: userData };
+  }
+
+  async forgotPasswordSendCode(email: string): Promise<{ token: string; email: string; message: string }> {
+    console.log('[API] sending password reset code to:', email);
+
+    const response = await fetch(`${this.baseUrl}/password/forgot`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    console.log('[API] forgot-password response status:', response.status);
+
+    const responseText = await response.text();
+    console.log('[API] raw forgot-password response:', responseText.substring(0, 500));
+
+    if (!response.ok) {
+      console.error('[API] forgot-password error:', responseText);
+      let errorMessage = 'Failed to send reset link';
+      try {
+        const errorData = JSON.parse(responseText);
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.errors) {
+          const firstError = Object.values(errorData.errors)[0];
+          if (Array.isArray(firstError) && firstError.length > 0) {
+            errorMessage = firstError[0] as string;
+          }
+        }
+      } catch {
+        errorMessage = responseText;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = JSON.parse(responseText);
+    console.log('[API] forgot-password success:', JSON.stringify(data));
+
+    return {
+      token: data?.data?.token,
+      email: data?.data?.email,
+      message: data?.data?.message,
+    };
+  }
+
+  async resetPassword(token: string, password: string, passwordConfirmation: string): Promise<LoginResponse> {
+    console.log('[API] resetting password with token');
+
+    const deviceName = Platform.OS === 'web' ? 'web app' : `mobile app (${Platform.OS})`;
+
+    const response = await fetch(`${this.baseUrl}/password/reset`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token,
+        password,
+        password_confirmation: passwordConfirmation,
+        device_name: deviceName,
+      }),
+    });
+
+    console.log('[API] reset-password response status:', response.status);
+
+    const responseText = await response.text();
+    console.log('[API] raw reset-password response:', responseText.substring(0, 500));
+
+    if (!response.ok) {
+      console.error('[API] reset-password error:', responseText);
+      let errorMessage = 'Password reset failed';
+      try {
+        const errorData = JSON.parse(responseText);
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.errors) {
+          const firstError = Object.values(errorData.errors)[0];
+          if (Array.isArray(firstError) && firstError.length > 0) {
+            errorMessage = firstError[0] as string;
+          }
+        }
+      } catch {
+        errorMessage = responseText;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const resetData = JSON.parse(responseText);
+    console.log('[API] reset-password success:', JSON.stringify(resetData));
+
+    const authToken = resetData?.data?.token;
+    const userData = resetData?.data?.user;
+
+    if (!authToken) {
+      throw new Error('No token received from password reset');
+    }
+
+    console.log('[API] password reset successful, token length:', authToken.length);
+    this.setAuthToken(authToken);
+
+    if (userData?.username) {
+      this.setUsername(userData.username);
+    }
+    if (userData?.id) {
+      this.setUserId(userData.id);
+    }
+
+    return { plainTextToken: authToken, user: userData };
   }
 
   async logout(): Promise<void> {

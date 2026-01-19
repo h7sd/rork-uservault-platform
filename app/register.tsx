@@ -13,7 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Check, ChevronDown } from 'lucide-react-native';
+import { Check, ChevronDown, Mail } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -116,7 +116,10 @@ function WelcomeOverlay({ visible, username, onComplete }: WelcomeOverlayProps) 
 }
 
 export default function RegisterScreen() {
+  const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState<string>('');
+  const [verificationToken, setVerificationToken] = useState<string>('');
+  
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [username, setUsername] = useState<string>('');
@@ -133,7 +136,7 @@ export default function RegisterScreen() {
   const [showWelcome, setShowWelcome] = useState<boolean>(false);
   const [welcomeUsername, setWelcomeUsername] = useState<string>('');
   
-  const { register } = useAuth();
+  const { registerSendCode, registerVerify } = useAuth();
   const router = useRouter();
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -154,8 +157,6 @@ export default function RegisterScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-
-
   }, [fadeAnim, slideAnim]);
 
   const shakeInput = () => {
@@ -187,10 +188,55 @@ export default function RegisterScreen() {
     ]).start();
   };
 
-  const handleRegister = async () => {
-    console.log('[Register] Button pressed!');
+  const handleSendCode = async () => {
+    if (!email.trim() || !email.includes('@')) {
+      shakeInput();
+      setErrorMessage('Please enter a valid email address');
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage('');
+    animateButtonPress();
     
-    if (!email.trim() || !password.trim() || !confirmPassword.trim() || !username.trim() || !firstName.trim()) {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    try {
+      console.log('[Register] Sending verification code to:', email);
+      const result = await registerSendCode(email);
+      
+      if (result.success && result.token) {
+        console.log('[Register] Code sent successfully, moving to step 2');
+        setVerificationToken(result.token);
+        setStep(2);
+        Alert.alert(
+          'Check your email',
+          'We sent you a verification link. Please click it to continue registration.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        console.error('[Register] Send code failed:', result.error);
+        shakeInput();
+        setErrorMessage(result.error || 'Failed to send verification code');
+        Alert.alert('Error', result.error || 'Failed to send verification code');
+      }
+    } catch (error) {
+      console.error('[Register] Error:', error);
+      shakeInput();
+      const message = error instanceof Error ? error.message : 'An error occurred';
+      setErrorMessage(message);
+      Alert.alert('Error', message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    console.log('[Register] Step 2: Complete registration');
+    
+    if (!password.trim() || !confirmPassword.trim() || !username.trim() || !firstName.trim()) {
       console.log('[Register] Validation failed: missing required fields');
       shakeInput();
       setErrorMessage('Please fill in all required fields');
@@ -239,14 +285,10 @@ export default function RegisterScreen() {
     }
     
     try {
-      console.log('[Register] Calling register function with data:', {
-        email: email.trim(),
-        username: username.trim(),
-        first_name: firstName.trim(),
-      });
+      console.log('[Register] Calling registerVerify with token');
       
-      const result = await register({
-        email: email.trim(),
+      const result = await registerVerify({
+        token: verificationToken,
         password,
         password_confirmation: confirmPassword,
         username: username.trim(),
@@ -260,7 +302,7 @@ export default function RegisterScreen() {
         city: city.trim() || undefined,
       });
       
-      console.log('[Register] Register function returned:', result);
+      console.log('[Register] registerVerify returned:', result);
       
       if (result.success) {
         console.log('[Register] Success! User:', result.user);
@@ -293,6 +335,110 @@ export default function RegisterScreen() {
     router.replace('/(tabs)');
   };
 
+  if (step === 1) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient
+          colors={['#1a1a2e', '#0f0f1e', '#0a0a0a']}
+          style={styles.gradientBackground}
+        />
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={false}
+        >
+          <KeyboardAvoidingView
+            style={styles.content}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <Animated.View 
+              style={[
+                styles.headerSection,
+                { 
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }]
+                }
+              ]}
+            >
+              <View style={styles.logoContainer}>
+                <Text style={styles.uvLogo}>UV</Text>
+              </View>
+              
+              <Text style={styles.title}>Create your account</Text>
+              <Text style={styles.subtitle}>Step 1: Enter your email to get started</Text>
+            </Animated.View>
+
+            <Animated.View 
+              style={[
+                styles.formSection,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }]
+                }
+              ]}
+            >
+              {errorMessage ? (
+                <Animated.View 
+                  style={[styles.errorContainer, { transform: [{ translateX: shakeAnim }] }]}
+                >
+                  <Text style={styles.errorText}>{errorMessage}</Text>
+                </Animated.View>
+              ) : null}
+
+              <View style={styles.emailIconContainer}>
+                <Mail color="#9CA3AF" size={48} />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email Address *</Text>
+                <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="your@email.com"
+                    placeholderTextColor="#6B7280"
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      setErrorMessage('');
+                    }}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    editable={!isLoading}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSendCode}
+                  />
+                </Animated.View>
+              </View>
+
+              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+                <TouchableOpacity
+                  style={[
+                    styles.registerButton,
+                    isLoading && styles.registerButtonLoading,
+                  ]}
+                  onPress={handleSendCode}
+                  activeOpacity={0.85}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.registerButtonText}>Send Verification Email</Text>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+
+              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <Text style={styles.backLink}>Already have an account? Sign in</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </KeyboardAvoidingView>
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -321,8 +467,8 @@ export default function RegisterScreen() {
               <Text style={styles.uvLogo}>UV</Text>
             </View>
             
-            <Text style={styles.title}>Create your account</Text>
-            <Text style={styles.subtitle}>Join USER VAULT today</Text>
+            <Text style={styles.title}>Complete your profile</Text>
+            <Text style={styles.subtitle}>Step 2: Fill in your details</Text>
           </Animated.View>
 
           <Animated.View 
@@ -341,26 +487,6 @@ export default function RegisterScreen() {
                 <Text style={styles.errorText}>{errorMessage}</Text>
               </Animated.View>
             ) : null}
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email *</Text>
-              <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="your@email.com"
-                  placeholderTextColor="#6B7280"
-                  value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    setErrorMessage('');
-                  }}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  editable={!isLoading}
-                  returnKeyType="next"
-                />
-              </Animated.View>
-            </View>
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Username *</Text>
@@ -573,8 +699,8 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Text style={styles.backLink}>Already have an account? Sign in</Text>
+            <TouchableOpacity onPress={() => setStep(1)} style={styles.backButton}>
+              <Text style={styles.backLink}>Back to email</Text>
             </TouchableOpacity>
           </Animated.View>
         </KeyboardAvoidingView>
@@ -651,6 +777,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     fontWeight: '500' as const,
+  },
+  emailIconContainer: {
+    alignItems: 'center',
+    marginVertical: 24,
   },
   inputGroup: {
     marginBottom: 4,
