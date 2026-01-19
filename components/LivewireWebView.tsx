@@ -60,19 +60,50 @@ export default function LivewireWebView({
 
   const injectedJavaScript = `
     (function() {
-      window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'page_loaded',
-        url: window.location.href
-      }));
+      // Wait for DOM to be ready
+      function checkReady() {
+        var emailInput = document.querySelector('input[type="email"]') || 
+                          document.querySelector('input[name="emailAddress"]') ||
+                          document.querySelector('input[name="email"]');
+        
+        if (!emailInput) {
+          var allInputs = document.querySelectorAll('input');
+          for (var i = 0; i < allInputs.length; i++) {
+            var inp = allInputs[i];
+            var wireModel = inp.getAttribute('wire:model') || 
+                            inp.getAttribute('wire:model.live') || 
+                            inp.getAttribute('wire:model.blur');
+            if (wireModel === 'emailAddress') {
+              emailInput = inp;
+              break;
+            }
+          }
+        }
+        
+        if (emailInput) {
+          console.log('[WebView] Page ready - email input found');
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'page_loaded',
+            url: window.location.href
+          }));
+        } else {
+          console.log('[WebView] Waiting for email input...');
+          setTimeout(checkReady, 500);
+        }
+      }
+      
+      // Start checking after a short delay
+      setTimeout(checkReady, 1000);
 
       // Override console.log to capture Livewire logs
-      const originalLog = console.log;
-      console.log = function(...args) {
-        originalLog.apply(console, args);
+      var originalLog = console.log;
+      console.log = function() {
+        originalLog.apply(console, arguments);
         try {
+          var args = Array.prototype.slice.call(arguments);
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'console',
-            message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')
+            message: args.map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' ')
           }));
         } catch(e) {}
       };
@@ -86,7 +117,7 @@ export default function LivewireWebView({
       });
 
       // Watch for URL changes
-      let lastUrl = window.location.href;
+      var lastUrl = window.location.href;
       setInterval(function() {
         if (window.location.href !== lastUrl) {
           lastUrl = window.location.href;
@@ -359,15 +390,15 @@ export default function LivewireWebView({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 1,
-    height: 1,
-    opacity: 0.01,
-    overflow: 'hidden',
+    top: -9999,
+    left: -9999,
+    width: 400,
+    height: 700,
+    opacity: 0,
   },
   webview: {
+    flex: 1,
     width: 400,
-    height: 600,
+    height: 700,
   },
 });
