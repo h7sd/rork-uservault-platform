@@ -256,7 +256,7 @@ export default function LoginScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    Linking.openURL('https://uservault.net/register');
+    router.push('/register');
   };
 
   const handleForgotPassword = () => {

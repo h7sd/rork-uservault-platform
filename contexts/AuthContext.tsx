@@ -1,6 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import api from '@/services/api';
 import type { User } from '@/types';
 
@@ -370,6 +371,107 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     loadUser();
   }, [loadUser]);
 
+  const register = async (data: {
+    email: string;
+    password: string;
+    password_confirmation: string;
+    username: string;
+    first_name: string;
+    last_name?: string;
+    birth_day: number;
+    birth_month: number;
+    birth_year: number;
+    gender: 'male' | 'female' | 'not-specified';
+    country: string;
+    city?: string;
+  }) => {
+    try {
+      console.log('[Auth] Registering new user:', data.email);
+
+      const deviceName = `mobile app (${Platform.OS})`;
+      const { plainTextToken: token, user: registerUser } = await api.register({
+        ...data,
+        device_name: deviceName,
+      });
+      
+      if (!token) {
+        return { success: false, error: 'No token received' };
+      }
+
+      console.log('[Auth] Token received, storing...');
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
+      setAuthToken(token);
+
+      let user: User | null = null;
+      let resolvedId: number | null = null;
+      let resolvedUsername: string | null = null;
+
+      if (registerUser?.id) {
+        const id = typeof registerUser.id === 'number' ? registerUser.id : parseInt(registerUser.id, 10);
+        if (!isNaN(id) && id > 0) {
+          resolvedId = id;
+          api.setUserId(resolvedId);
+          await AsyncStorage.setItem(USER_ID_KEY, String(resolvedId));
+          console.log('[Auth] Got user ID from register response:', resolvedId);
+          
+          if (registerUser.username && typeof registerUser.username === 'string') {
+            resolvedUsername = registerUser.username;
+            api.setUsername(resolvedUsername);
+            await AsyncStorage.setItem(USERNAME_KEY, resolvedUsername);
+            setStoredUsername(resolvedUsername);
+            console.log('[Auth] Got username from register response:', resolvedUsername);
+          }
+        }
+      }
+
+      if (resolvedUsername) {
+        console.log('[Auth] Fetching profile with username:', resolvedUsername);
+        user = await fetchUserProfile(resolvedUsername);
+      }
+      
+      if (user) {
+        setCurrentUser(user);
+        await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+        await AsyncStorage.setItem(USER_ID_KEY, String(user.id));
+        await AsyncStorage.setItem(USERNAME_KEY, user.username);
+        api.setUserId(user.id);
+        api.setUsername(user.username);
+        console.log('[Auth] Registration successful:', user.id, user.username);
+        return { success: true, user };
+      }
+
+      const fallbackUser: User = {
+        id: resolvedId ?? Date.now(),
+        username: resolvedUsername ?? data.username,
+        name: data.first_name,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        email: data.email,
+        type: 'reader',
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
+        created_at: new Date().toISOString(),
+        is_temporary: true,
+      };
+      
+      setCurrentUser(fallbackUser);
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(fallbackUser));
+      if (resolvedId) {
+        await AsyncStorage.setItem(USER_ID_KEY, String(resolvedId));
+      }
+      console.log('[Auth] Using fallback user with ID:', fallbackUser.id);
+      return { success: true, user: fallbackUser };
+
+    } catch (error) {
+      console.error('[Auth] Registration error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Registration failed',
+      };
+    }
+  };
+
   const login = async (emailOrLogin: string, password: string) => {
     try {
       console.log('[Auth] Logging in with:', emailOrLogin);
@@ -535,6 +637,7 @@ export const [AuthContext, useAuth] = createContextHook(() => {
     isLoading,
     authToken,
     login,
+    register,
     logout,
     updateUser,
     isAuthenticated,

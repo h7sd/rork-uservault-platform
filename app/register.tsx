@@ -1,0 +1,812 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  ScrollView,
+  Keyboard,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Check, ChevronDown } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { useAuth } from '@/contexts/AuthContext';
+import Silk from '@/components/Silk';
+
+const COUNTRIES = [
+  { code: 'DE', name: 'Germany' },
+  { code: 'US', name: 'United States' },
+  { code: 'AT', name: 'Austria' },
+  { code: 'CH', name: 'Switzerland' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'FR', name: 'France' },
+];
+
+interface WelcomeOverlayProps {
+  visible: boolean;
+  username: string;
+  onComplete: () => void;
+}
+
+function WelcomeOverlay({ visible, username, onComplete }: WelcomeOverlayProps) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.5)).current;
+  const checkScale = useRef(new Animated.Value(0)).current;
+  const textSlide = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.spring(scaleAnim, {
+            toValue: 1,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.spring(checkScale, {
+            toValue: 1,
+            friction: 5,
+            tension: 80,
+            useNativeDriver: true,
+          }),
+          Animated.timing(textSlide, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      const timeout = setTimeout(() => {
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }).start(() => onComplete());
+      }, 2200);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [visible, onComplete, fadeAnim, scaleAnim, checkScale, textSlide]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={[styles.welcomeOverlay, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.welcomeContent, { transform: [{ scale: scaleAnim }] }]}>
+        <Animated.View style={[styles.welcomeCheckCircle, { transform: [{ scale: checkScale }] }]}>
+          <Check color="#FFFFFF" size={36} strokeWidth={3} />
+        </Animated.View>
+        <Animated.Text 
+          style={[
+            styles.welcomeTitle, 
+            { transform: [{ translateY: textSlide }], opacity: fadeAnim }
+          ]}
+        >
+          Welcome to USER VAULT
+        </Animated.Text>
+        <Animated.Text 
+          style={[
+            styles.welcomeUsername,
+            { transform: [{ translateY: textSlide }], opacity: fadeAnim }
+          ]}
+        >
+          @{username}
+        </Animated.Text>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+export default function RegisterScreen() {
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [username, setUsername] = useState<string>('');
+  const [firstName, setFirstName] = useState<string>('');
+  const [lastName, setLastName] = useState<string>('');
+  const [birthDay, setBirthDay] = useState<string>('');
+  const [birthMonth, setBirthMonth] = useState<string>('');
+  const [birthYear, setBirthYear] = useState<string>('');
+  const [gender, setGender] = useState<'male' | 'female' | 'not-specified'>('not-specified');
+  const [country] = useState<string>('DE');
+  const [city, setCity] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showWelcome, setShowWelcome] = useState<boolean>(false);
+  const [welcomeUsername, setWelcomeUsername] = useState<string>('');
+  const [keyboardVisible, setKeyboardVisible] = useState<boolean>(false);
+  
+  const { register } = useAuth();
+  const router = useRouter();
+
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true)
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, [fadeAnim, slideAnim]);
+
+  const shakeInput = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+    
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  };
+
+  const animateButtonPress = () => {
+    Animated.sequence([
+      Animated.timing(buttonScale, {
+        toValue: 0.96,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonScale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const handleRegister = async () => {
+    if (!email.trim() || !password.trim() || !confirmPassword.trim() || !username.trim() || !firstName.trim()) {
+      shakeInput();
+      setErrorMessage('Please fill in all required fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      shakeInput();
+      setErrorMessage('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 8) {
+      shakeInput();
+      setErrorMessage('Password must be at least 8 characters');
+      return;
+    }
+
+    const day = parseInt(birthDay, 10);
+    const month = parseInt(birthMonth, 10);
+    const year = parseInt(birthYear, 10);
+
+    if (!birthDay || !birthMonth || !birthYear || isNaN(day) || isNaN(month) || isNaN(year)) {
+      shakeInput();
+      setErrorMessage('Please enter a valid birth date');
+      return;
+    }
+
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900 || year > new Date().getFullYear() - 13) {
+      shakeInput();
+      setErrorMessage('Invalid birth date. You must be at least 13 years old.');
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMessage('');
+    animateButtonPress();
+    
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    try {
+      console.log('[Register] Attempting registration...');
+      const result = await register({
+        email: email.trim(),
+        password,
+        password_confirmation: confirmPassword,
+        username: username.trim(),
+        first_name: firstName.trim(),
+        last_name: lastName.trim() || undefined,
+        birth_day: day,
+        birth_month: month,
+        birth_year: year,
+        gender,
+        country,
+        city: city.trim() || undefined,
+      });
+      
+      if (result.success) {
+        console.log('[Register] Success! User:', result.user);
+        const displayUsername = result.user?.username || username;
+        console.log('[Register] Setting welcome username:', displayUsername);
+        setWelcomeUsername(displayUsername);
+        setShowWelcome(true);
+      } else {
+        console.error('[Register] Failed:', result.error);
+        shakeInput();
+        setErrorMessage(result.error || 'Registration failed');
+        Alert.alert('Registration failed', result.error || 'Please check your information.');
+      }
+    } catch (error) {
+      console.error('[Register] Error:', error);
+      shakeInput();
+      const message = error instanceof Error ? error.message : 'An error occurred';
+      setErrorMessage(message);
+      Alert.alert('Error', message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleWelcomeComplete = () => {
+    console.log('[Register] Welcome complete, navigating...');
+    setShowWelcome(false);
+    router.replace('/(tabs)');
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.silkBackground}>
+        <Silk 
+          speed={2} 
+          scale={1.2} 
+          color="#4338CA" 
+          noiseIntensity={1.2} 
+          rotation={0.3}
+          paused={keyboardVisible}
+        />
+      </View>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <KeyboardAvoidingView
+          style={styles.content}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Animated.View 
+            style={[
+              styles.headerSection,
+              { 
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
+            <View style={styles.logoContainer}>
+              <Text style={styles.uvLogo}>UV</Text>
+            </View>
+            
+            <Text style={styles.title}>Create your account</Text>
+            <Text style={styles.subtitle}>Join USER VAULT today</Text>
+          </Animated.View>
+
+          <Animated.View 
+            style={[
+              styles.formSection,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
+            {errorMessage ? (
+              <Animated.View 
+                style={[styles.errorContainer, { transform: [{ translateX: shakeAnim }] }]}
+              >
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </Animated.View>
+            ) : null}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email *</Text>
+              <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="your@email.com"
+                  placeholderTextColor="#6B7280"
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    setErrorMessage('');
+                  }}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  editable={!isLoading}
+                  returnKeyType="next"
+                />
+              </Animated.View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Username *</Text>
+              <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="username"
+                  placeholderTextColor="#6B7280"
+                  value={username}
+                  onChangeText={(text) => {
+                    setUsername(text);
+                    setErrorMessage('');
+                  }}
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                  returnKeyType="next"
+                />
+              </Animated.View>
+            </View>
+
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfWidth]}>
+                <Text style={styles.inputLabel}>First Name *</Text>
+                <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="First"
+                    placeholderTextColor="#6B7280"
+                    value={firstName}
+                    onChangeText={(text) => {
+                      setFirstName(text);
+                      setErrorMessage('');
+                    }}
+                    editable={!isLoading}
+                    returnKeyType="next"
+                  />
+                </Animated.View>
+              </View>
+
+              <View style={[styles.inputGroup, styles.halfWidth]}>
+                <Text style={styles.inputLabel}>Last Name</Text>
+                <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Last"
+                    placeholderTextColor="#6B7280"
+                    value={lastName}
+                    onChangeText={setLastName}
+                    editable={!isLoading}
+                    returnKeyType="next"
+                  />
+                </Animated.View>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Birth Date *</Text>
+              <View style={styles.row}>
+                <Animated.View style={[styles.inputWrapper, styles.birthInput, { transform: [{ translateX: shakeAnim }] }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="DD"
+                    placeholderTextColor="#6B7280"
+                    value={birthDay}
+                    onChangeText={setBirthDay}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    editable={!isLoading}
+                  />
+                </Animated.View>
+                <Animated.View style={[styles.inputWrapper, styles.birthInput, { transform: [{ translateX: shakeAnim }] }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="MM"
+                    placeholderTextColor="#6B7280"
+                    value={birthMonth}
+                    onChangeText={setBirthMonth}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    editable={!isLoading}
+                  />
+                </Animated.View>
+                <Animated.View style={[styles.inputWrapper, styles.birthInputYear, { transform: [{ translateX: shakeAnim }] }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="YYYY"
+                    placeholderTextColor="#6B7280"
+                    value={birthYear}
+                    onChangeText={setBirthYear}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    editable={!isLoading}
+                  />
+                </Animated.View>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Gender *</Text>
+              <View style={styles.genderRow}>
+                <TouchableOpacity
+                  style={[styles.genderButton, gender === 'male' && styles.genderButtonActive]}
+                  onPress={() => setGender('male')}
+                  disabled={isLoading}
+                >
+                  <Text style={[styles.genderButtonText, gender === 'male' && styles.genderButtonTextActive]}>
+                    Male
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.genderButton, gender === 'female' && styles.genderButtonActive]}
+                  onPress={() => setGender('female')}
+                  disabled={isLoading}
+                >
+                  <Text style={[styles.genderButtonText, gender === 'female' && styles.genderButtonTextActive]}>
+                    Female
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.genderButton, gender === 'not-specified' && styles.genderButtonActive]}
+                  onPress={() => setGender('not-specified')}
+                  disabled={isLoading}
+                >
+                  <Text style={[styles.genderButtonText, gender === 'not-specified' && styles.genderButtonTextActive]}>
+                    Other
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Country *</Text>
+              <View style={styles.selectWrapper}>
+                <Text style={styles.selectText}>{COUNTRIES.find(c => c.code === country)?.name}</Text>
+                <ChevronDown color="#6B7280" size={20} />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>City</Text>
+              <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="City"
+                  placeholderTextColor="#6B7280"
+                  value={city}
+                  onChangeText={setCity}
+                  editable={!isLoading}
+                  returnKeyType="next"
+                />
+              </Animated.View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password *</Text>
+              <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Min. 8 characters"
+                  placeholderTextColor="#6B7280"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    setErrorMessage('');
+                  }}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                  returnKeyType="next"
+                />
+              </Animated.View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Confirm Password *</Text>
+              <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Confirm password"
+                  placeholderTextColor="#6B7280"
+                  value={confirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+                    setErrorMessage('');
+                  }}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                  onSubmitEditing={handleRegister}
+                  returnKeyType="done"
+                />
+              </Animated.View>
+            </View>
+
+            <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+              <TouchableOpacity
+                style={[
+                  styles.registerButton,
+                  isLoading && styles.registerButtonLoading,
+                ]}
+                onPress={handleRegister}
+                activeOpacity={0.85}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.registerButtonText}>Create Account</Text>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Text style={styles.backLink}>Already have an account? Sign in</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </ScrollView>
+
+      <WelcomeOverlay 
+        visible={showWelcome} 
+        username={welcomeUsername}
+        onComplete={handleWelcomeComplete}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0A0A',
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 32,
+  },
+  headerSection: {
+    marginBottom: 32,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  uvLogo: {
+    fontSize: 48,
+    fontWeight: '800' as const,
+    color: '#8B5CF6',
+    letterSpacing: -2,
+    textShadowColor: 'rgba(139, 92, 246, 0.9)',
+    textShadowOffset: { width: 0, height: 6 },
+    textShadowRadius: 20,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#9CA3AF',
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  formSection: {
+    gap: 16,
+  },
+  errorContainer: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500' as const,
+  },
+  inputGroup: {
+    marginBottom: 4,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    backgroundColor: '#2D2D30',
+    borderRadius: 12,
+    borderWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  input: {
+    flex: 1,
+    height: 50,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfWidth: {
+    flex: 1,
+  },
+  birthInput: {
+    flex: 1,
+  },
+  birthInputYear: {
+    flex: 1.5,
+  },
+  genderRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  genderButton: {
+    flex: 1,
+    height: 50,
+    backgroundColor: '#2D2D30',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  genderButtonActive: {
+    backgroundColor: '#1D9BF0',
+    borderColor: '#1D9BF0',
+  },
+  genderButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#9CA3AF',
+  },
+  genderButtonTextActive: {
+    color: '#000000',
+  },
+  selectWrapper: {
+    backgroundColor: '#2D2D30',
+    borderRadius: 12,
+    height: 50,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  selectText: {
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
+  registerButton: {
+    height: 56,
+    backgroundColor: '#1D9BF0',
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: '#1D9BF0',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  registerButtonLoading: {
+    opacity: 0.8,
+  },
+  registerButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#000000',
+  },
+  backButton: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  backLink: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontWeight: '400' as const,
+  },
+  welcomeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0A0A0A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+  },
+  welcomeContent: {
+    alignItems: 'center',
+  },
+  welcomeCheckCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  welcomeTitle: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  welcomeUsername: {
+    fontSize: 18,
+    fontWeight: '500' as const,
+    color: '#A1A1AA',
+  },
+  silkBackground: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+});

@@ -918,6 +918,81 @@ class ApiService {
     return this.post('/follows/accept/user', { id: userId });
   }
 
+  async register(data: {
+    email: string;
+    password: string;
+    password_confirmation: string;
+    username: string;
+    first_name: string;
+    last_name?: string;
+    birth_day: number;
+    birth_month: number;
+    birth_year: number;
+    gender: 'male' | 'female' | 'not-specified';
+    country: string;
+    city?: string;
+    device_name: string;
+  }): Promise<LoginResponse> {
+    console.log('[API] registering new user:', data.email);
+
+    const response = await fetch(`${this.baseUrl}/register`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    console.log('[API] register response status:', response.status);
+
+    const responseText = await response.text();
+    console.log('[API] raw register response:', responseText.substring(0, 500));
+
+    if (!response.ok) {
+      console.error('[API] registration error:', responseText);
+      let errorMessage = 'Registration failed';
+      try {
+        const errorData = JSON.parse(responseText);
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.errors) {
+          const firstError = Object.values(errorData.errors)[0];
+          if (Array.isArray(firstError) && firstError.length > 0) {
+            errorMessage = firstError[0] as string;
+          }
+        }
+      } catch {
+        errorMessage = responseText;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const registerData = JSON.parse(responseText);
+    console.log('[API] register data:', JSON.stringify(registerData));
+
+    const token = registerData?.data?.token;
+    const userData = registerData?.data?.user;
+
+    if (!token) {
+      throw new Error('No token received from registration');
+    }
+
+    console.log('[API] registration successful, token length:', token.length);
+    this.setAuthToken(token);
+
+    if (userData?.username) {
+      this.setUsername(userData.username);
+    }
+    if (userData?.id) {
+      this.setUserId(userData.id);
+    }
+
+    return { plainTextToken: token, user: userData };
+  }
+
   async logout(): Promise<void> {
     console.log('[API] logging out');
 
@@ -1089,6 +1164,33 @@ class ApiService {
       throw new Error('Not authenticated');
     }
     return this.delete('/post/editor/media/delete');
+  }
+
+  async getNotifications(type: 'all' | 'mentions' | 'important' = 'all'): Promise<any> {
+    console.log('[API] fetching notifications:', type);
+    if (!this.authToken) {
+      throw new Error('Not authenticated');
+    }
+    return this.get(`/notifications/${type}`);
+  }
+
+  async getUnreadNotificationCount(): Promise<any> {
+    console.log('[API] fetching unread notification count');
+    if (!this.authToken) {
+      throw new Error('Not authenticated');
+    }
+    return this.get('/notifications/unread/count');
+  }
+
+  async deleteNotification(notificationId: string): Promise<any> {
+    console.log('[API] deleting notification:', notificationId);
+    if (!this.authToken) {
+      throw new Error('Not authenticated');
+    }
+    return this.request('/notifications/delete', {
+      method: 'DELETE',
+      body: JSON.stringify({ notification_id: notificationId }),
+    });
   }
 }
 

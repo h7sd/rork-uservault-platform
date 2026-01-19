@@ -899,3 +899,62 @@ export function useAcceptFollowRequest() {
     },
   });
 }
+
+export function useNotificationsApi(type: 'all' | 'mentions' | 'important' = 'all') {
+  const { isLoading: authLoading, authToken } = useAuth();
+  
+  return useQuery({
+    queryKey: ['notifications', type],
+    queryFn: async () => {
+      console.log('[useApi] Fetching notifications:', type);
+      try {
+        const response = await api.getNotifications(type);
+        console.log('[useApi] Notifications response:', JSON.stringify(response).slice(0, 500));
+        return response;
+      } catch (e) {
+        console.log('[useApi] Notifications fetch failed:', e);
+        return { data: [] };
+      }
+    },
+    enabled: !authLoading && !!authToken,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+  });
+}
+
+export function useUnreadNotificationCount() {
+  const { isLoading: authLoading, authToken } = useAuth();
+  
+  return useQuery({
+    queryKey: ['notifications', 'unread', 'count'],
+    queryFn: async () => {
+      console.log('[useApi] Fetching unread notification count');
+      try {
+        const response = await api.getUnreadNotificationCount();
+        console.log('[useApi] Unread count response:', JSON.stringify(response));
+        return response;
+      } catch (e) {
+        console.log('[useApi] Unread count fetch failed:', e);
+        return { data: { formatted: '0', raw: 0 } };
+      }
+    },
+    enabled: !authLoading && !!authToken,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+  });
+}
+
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (notificationId: string) => api.deleteNotification(notificationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}

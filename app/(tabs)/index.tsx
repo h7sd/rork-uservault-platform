@@ -14,12 +14,12 @@ import {
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Eye, X, Play } from 'lucide-react-native';
+import { Heart, MessageCircle, Share2, MoreHorizontal, Eye, X, Play, Bell } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 
 import colors from '@/constants/colors';
-import { useTimelineApi, useStoriesApi, useLikePost, useCurrentUserProfile } from '@/hooks/useApi';
+import { useTimelineApi, useStoriesApi, useLikePost, useCurrentUserProfile, useUnreadNotificationCount } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Story, Post } from '@/types';
 import VerifiedBadge from '@/components/VerifiedBadge';
@@ -406,8 +406,13 @@ export default function HomeScreen() {
   const { data: postsData, isLoading: postsLoading, refetch: refetchPosts, error: postsError } = useTimelineApi();
   const { data: storiesData, isLoading: storiesLoading, refetch: refetchStories } = useStoriesApi();
   const { refetch: refetchProfile } = useCurrentUserProfile();
+  const { data: unreadCountData } = useUnreadNotificationCount();
   const { currentUser, isAuthenticated } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+  const router = useRouter();
+
+  const unreadCount = unreadCountData?.data?.raw || 0;
+  const hasUnread = unreadCount > 0;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -435,6 +440,19 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>USER VAULT</Text>
+        <TouchableOpacity 
+          style={styles.notificationButton}
+          onPress={() => router.push('/notifications')}
+        >
+          <Bell color={colors.dark.text} size={24} />
+          {hasUnread && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView 
@@ -498,6 +516,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark.background,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
@@ -508,6 +529,32 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: colors.dark.text,
     letterSpacing: 0.5,
+  },
+  notificationButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.dark.background,
+  },
+  notificationBadgeText: {
+    color: colors.dark.text,
+    fontSize: 11,
+    fontWeight: '700' as const,
   },
   content: {
     flex: 1,
