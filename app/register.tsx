@@ -514,15 +514,6 @@ export default function RegisterScreen() {
   if (step === 1) {
     return (
       <View style={styles.container}>
-        {useWebView && Platform.OS !== 'web' && (
-          <LivewireWebView
-            email={email}
-            action="signup"
-            trigger={webViewTrigger}
-            onSuccess={handleWebViewSuccess}
-            onError={handleWebViewError}
-          />
-        )}
         <LinearGradient
           colors={['#1a1a2e', '#0f0f1e', '#0a0a0a']}
           style={styles.gradientBackground}
@@ -531,7 +522,6 @@ export default function RegisterScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          scrollEnabled={false}
         >
           <KeyboardAvoidingView
             style={styles.content}
@@ -550,8 +540,7 @@ export default function RegisterScreen() {
                 <Text style={styles.uvLogo}>UV</Text>
               </View>
               
-              <Text style={styles.title}>Create your account</Text>
-              <Text style={styles.subtitle}>Step 1: Enter your email to get started</Text>
+              <Text style={styles.title}>Create Account</Text>
             </Animated.View>
 
             <Animated.View 
@@ -563,60 +552,37 @@ export default function RegisterScreen() {
                 }
               ]}
             >
-              {errorMessage ? (
-                <Animated.View 
-                  style={[styles.errorContainer, { transform: [{ translateX: shakeAnim }] }]}
-                >
-                  <Text style={styles.errorText}>{errorMessage}</Text>
-                </Animated.View>
-              ) : null}
-
-              <View style={styles.emailIconContainer}>
-                <Mail color="#9CA3AF" size={48} />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Email Address *</Text>
-                <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="your@email.com"
-                    placeholderTextColor="#6B7280"
-                    value={email}
-                    onChangeText={(text) => {
-                      setEmail(text);
-                      setErrorMessage('');
-                    }}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    editable={!isLoading}
-                    returnKeyType="done"
-                    onSubmitEditing={handleSendCode}
-                  />
-                </Animated.View>
+              <View style={styles.infoBox}>
+                <Mail color="#8B5CF6" size={56} />
+                <Text style={styles.infoTitle}>Website Registration Required</Text>
+                <Text style={styles.infoText}>
+                  To create an account, please visit our website first:
+                </Text>
+                <Text style={styles.infoSteps}>
+                  1. Go to uservault.net and create your account{"\n"}
+                  2. Verify your email address{"\n"}
+                  3. Come back here and sign in
+                </Text>
+                <View style={styles.comingSoonBox}>
+                  <Text style={styles.comingSoonText}>
+                    We are working on fixing in-app registration as fast as possible!
+                  </Text>
+                </View>
               </View>
 
               <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
                 <TouchableOpacity
-                  style={[
-                    styles.registerButton,
-                    isLoading && styles.registerButtonLoading,
-                  ]}
-                  onPress={handleSendCode}
+                  style={styles.registerButton}
+                  onPress={() => router.back()}
                   activeOpacity={0.85}
-                  disabled={isLoading}
                 >
-                  {isLoading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.registerButtonText}>Send Verification Email</Text>
-                  )}
+                  <Text style={styles.registerButtonText}>Go to Sign In</Text>
                 </TouchableOpacity>
               </Animated.View>
 
-              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <Text style={styles.backLink}>Already have an account? Sign in</Text>
-              </TouchableOpacity>
+              <View style={styles.teamSignature}>
+                <Text style={styles.teamSignatureText}>Uservault team</Text>
+              </View>
             </Animated.View>
           </KeyboardAvoidingView>
         </ScrollView>
@@ -1117,5 +1083,60 @@ const styles = StyleSheet.create({
   },
   gradientBackground: {
     ...StyleSheet.absoluteFillObject,
+  },
+  infoBox: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 16,
+    padding: 28,
+    alignItems: 'center',
+    marginVertical: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
+  },
+  infoTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    marginTop: 20,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  infoText: {
+    fontSize: 15,
+    color: '#D1D5DB',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  infoSteps: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    lineHeight: 24,
+    textAlign: 'left',
+    alignSelf: 'stretch',
+    paddingHorizontal: 8,
+  },
+  comingSoonBox: {
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  comingSoonText: {
+    fontSize: 13,
+    color: '#A78BFA',
+    textAlign: 'center',
+    fontWeight: '500' as const,
+  },
+  teamSignature: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  teamSignatureText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontStyle: 'italic' as const,
   },
 });
