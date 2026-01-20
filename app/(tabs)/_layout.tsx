@@ -304,7 +304,17 @@ export default function TabLayout() {
       <Tabs.Screen
         name="create"
         options={{
-          href: null,
+          title: "Create",
+          tabBarIcon: () => (
+            <CreateButton onPress={() => setShowCreateMenu(true)} />
+          ),
+          tabBarLabel: () => null,
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            setShowCreateMenu(true);
+          },
         }}
       />
       <Tabs.Screen
