@@ -77,10 +77,7 @@ function WelcomeOverlay({ visible, username, onComplete }: WelcomeOverlayProps) 
 
   return (
     <Animated.View style={[styles.welcomeOverlay, { opacity: fadeAnim }]}>
-      <LinearGradient
-        colors={['#0a0612', '#100a1a', '#0a0612']}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={styles.welcomeOverlayBg} />
       <Animated.View style={[styles.welcomeContent, { transform: [{ scale: scaleAnim }] }]}>
         <Animated.View
           style={[
@@ -114,47 +111,46 @@ export default function LoginScreen() {
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoScale = useRef(new Animated.Value(0.8)).current;
+  const logoScale = useRef(new Animated.Value(0.9)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
   const passwordFieldOpacity = useRef(new Animated.Value(0)).current;
-  const formSlide = useRef(new Animated.Value(40)).current;
+  const formSlide = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
     Animated.sequence([
       Animated.parallel([
         Animated.timing(logoOpacity, {
           toValue: 1,
-          duration: 600,
+          duration: 500,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.spring(logoScale, {
           toValue: 1,
-          friction: 8,
-          tension: 40,
+          friction: 10,
+          tension: 60,
           useNativeDriver: true,
         }),
       ]),
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 500,
+          duration: 400,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.spring(slideAnim, {
           toValue: 0,
-          friction: 10,
-          tension: 50,
+          friction: 12,
+          tension: 60,
           useNativeDriver: true,
         }),
         Animated.spring(formSlide, {
           toValue: 0,
-          friction: 10,
-          tension: 45,
-          delay: 100,
+          friction: 12,
+          tension: 55,
           useNativeDriver: true,
         }),
       ]),
@@ -166,7 +162,7 @@ export default function LoginScreen() {
       setShowPasswordField(true);
       Animated.timing(passwordFieldOpacity, {
         toValue: 1,
-        duration: 300,
+        duration: 250,
         useNativeDriver: true,
       }).start();
     }
@@ -174,10 +170,10 @@ export default function LoginScreen() {
 
   const shakeInput = useCallback(() => {
     Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 12, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -12, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 6, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -6, duration: 50, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
     ]).start();
 
@@ -189,13 +185,13 @@ export default function LoginScreen() {
   const animateButtonPress = useCallback(() => {
     Animated.sequence([
       Animated.timing(buttonScale, {
-        toValue: 0.96,
-        duration: 80,
+        toValue: 0.97,
+        duration: 60,
         useNativeDriver: true,
       }),
       Animated.timing(buttonScale, {
         toValue: 1,
-        duration: 80,
+        duration: 60,
         useNativeDriver: true,
       }),
     ]).start();
@@ -269,12 +265,10 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0a0a1a', '#12082a', '#1a0a2e', '#0d061a']}
-        locations={[0, 0.3, 0.7, 1]}
+        colors={['#0a0a0f', '#0d0d14', '#0a0a0f']}
+        locations={[0, 0.5, 1]}
         style={styles.gradientBackground}
       />
-      <View style={styles.glowOrb} />
-      <View style={styles.glowOrbSecondary} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -286,16 +280,13 @@ export default function LoginScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <Animated.View style={[styles.headerSection, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
-            <View style={styles.logoGlow}>
-              <Text style={styles.uvLogo}>UV</Text>
-            </View>
+            <Text style={styles.uvLogo}>UV</Text>
             <Animated.View
               style={{
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
               }}
             >
-              <Text style={styles.title}>USERVAULT</Text>
               <Text style={styles.subtitle}>Sign in to continue</Text>
             </Animated.View>
           </Animated.View>
@@ -319,7 +310,7 @@ export default function LoginScreen() {
 
             <View style={styles.dividerContainer}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or sign in</Text>
+              <Text style={styles.dividerText}>or</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -342,7 +333,7 @@ export default function LoginScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Email or username"
-                  placeholderTextColor="#4b5563"
+                  placeholderTextColor="#52525b"
                   value={loginOrEmail}
                   onChangeText={(text) => {
                     setLoginOrEmail(text);
@@ -375,7 +366,7 @@ export default function LoginScreen() {
                   <TextInput
                     style={[styles.input, styles.passwordInput]}
                     placeholder="Password"
-                    placeholderTextColor="#4b5563"
+                    placeholderTextColor="#52525b"
                     value={password}
                     onChangeText={(text) => {
                       setPassword(text);
@@ -394,9 +385,9 @@ export default function LoginScreen() {
                     onPress={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
-                      <EyeOff size={18} color="#6b7280" />
+                      <EyeOff size={18} color="#71717a" />
                     ) : (
-                      <Eye size={18} color="#6b7280" />
+                      <Eye size={18} color="#71717a" />
                     )}
                   </TouchableOpacity>
                 </Animated.View>
@@ -411,7 +402,7 @@ export default function LoginScreen() {
                 disabled={isLoading}
               >
                 <LinearGradient
-                  colors={['#7c3aed', '#6d28d9']}
+                  colors={['#6366f1', '#4f46e5']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.loginButtonGradient}
@@ -465,11 +456,11 @@ export default function LoginScreen() {
       >
         <View style={styles.modalOverlay}>
           {Platform.OS === 'ios' ? (
-            <BlurView intensity={30} tint="dark" style={styles.modalBlur}>
+            <BlurView intensity={40} tint="dark" style={styles.modalBlur}>
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Create Account</Text>
                 <Text style={styles.modalText}>
-                  To create an account, please visit our website and complete registration:
+                  To create an account, please visit our website:
                 </Text>
                 <View style={styles.modalSteps}>
                   <View style={styles.modalStepRow}>
@@ -505,7 +496,7 @@ export default function LoginScreen() {
                 <Text style={styles.modalTeamSignature}>— Uservault team</Text>
                 <TouchableOpacity style={styles.modalButton} onPress={handleOpenWebsite}>
                   <LinearGradient
-                    colors={['#7c3aed', '#6d28d9']}
+                    colors={['#6366f1', '#4f46e5']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.modalButtonGradient}
@@ -525,7 +516,7 @@ export default function LoginScreen() {
             <View style={styles.modalContentAndroid}>
               <Text style={styles.modalTitle}>Create Account</Text>
               <Text style={styles.modalText}>
-                To create an account, please visit our website and complete registration:
+                To create an account, please visit our website:
               </Text>
               <View style={styles.modalSteps}>
                 <View style={styles.modalStepRow}>
@@ -559,7 +550,7 @@ export default function LoginScreen() {
               <Text style={styles.modalTeamSignature}>— Uservault team</Text>
               <TouchableOpacity style={styles.modalButton} onPress={handleOpenWebsite}>
                 <LinearGradient
-                  colors={['#7c3aed', '#6d28d9']}
+                  colors={['#6366f1', '#4f46e5']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.modalButtonGradient}
@@ -584,35 +575,17 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#080510',
+    backgroundColor: '#09090b',
   },
   gradientBackground: {
     ...StyleSheet.absoluteFillObject,
-  },
-  glowOrb: {
-    position: 'absolute',
-    top: -100,
-    left: -50,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(124, 58, 237, 0.15)',
-  },
-  glowOrbSecondary: {
-    position: 'absolute',
-    bottom: -50,
-    right: -80,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
   },
   scrollContent: {
     flexGrow: 1,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
     paddingTop: 140,
     paddingBottom: 40,
   },
@@ -620,30 +593,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 56,
   },
-  logoGlow: {
-    marginBottom: 20,
-  },
   uvLogo: {
-    fontSize: 80,
-    fontWeight: '700' as const,
-    color: '#a78bfa',
-    letterSpacing: 8,
-    textShadowColor: 'rgba(139, 92, 246, 0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 30,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: '700' as const,
-    color: '#9ca3af',
+    fontSize: 68,
+    fontWeight: '800' as const,
+    color: '#fafafa',
     letterSpacing: 6,
-    textAlign: 'center',
+    marginBottom: 12,
   },
   subtitle: {
     fontSize: 15,
-    fontWeight: '500' as const,
-    color: '#6b7280',
-    marginTop: 8,
+    fontWeight: '400' as const,
+    color: '#71717a',
     textAlign: 'center',
   },
   formSection: {
@@ -652,42 +612,44 @@ const styles = StyleSheet.create({
   createAccountButton: {
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: 'rgba(124, 58, 237, 0.1)',
-    height: 54,
+    backgroundColor: 'transparent',
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
+    borderWidth: 1.5,
+    borderColor: '#27272a',
   },
   createAccountText: {
     fontSize: 15,
     fontWeight: '600' as const,
-    color: '#a78bfa',
+    color: '#fafafa',
   },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 12,
+    marginVertical: 16,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#27272a',
   },
   dividerText: {
-    color: '#6b7280',
+    color: '#52525b',
     fontSize: 13,
     fontWeight: '500' as const,
-    marginHorizontal: 14,
+    marginHorizontal: 16,
   },
   errorContainer: {
-    backgroundColor: 'rgba(220, 38, 38, 0.1)',
-    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 10,
     padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
   },
   errorText: {
-    color: '#ef4444',
-    fontSize: 14,
+    color: '#f87171',
+    fontSize: 13,
     fontWeight: '500' as const,
     textAlign: 'center',
   },
@@ -695,24 +657,23 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   inputWrapper: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: '#18181b',
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: '#27272a',
   },
   inputWrapperFocused: {
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderColor: '#6366f1',
   },
   input: {
     flex: 1,
-    height: 54,
-    paddingHorizontal: 18,
-    fontSize: 16,
+    height: 52,
+    paddingHorizontal: 16,
+    fontSize: 15,
     fontWeight: '500' as const,
-    color: '#f3f4f6',
+    color: '#fafafa',
   },
   passwordInput: {
     paddingRight: 50,
@@ -725,28 +686,27 @@ const styles = StyleSheet.create({
   loginButton: {
     borderRadius: 12,
     overflow: 'hidden',
-    marginTop: 12,
+    marginTop: 8,
   },
   loginButtonGradient: {
-    height: 54,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   loginButtonText: {
-    fontSize: 16,
-    fontWeight: '700' as const,
+    fontSize: 15,
+    fontWeight: '600' as const,
     color: '#fff',
-    letterSpacing: 0.5,
   },
   forgotButton: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   forgotLink: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500' as const,
-    color: '#8b5cf6',
+    color: '#a1a1aa',
   },
   footer: {
     marginTop: 'auto',
@@ -754,18 +714,22 @@ const styles = StyleSheet.create({
   },
   termsText: {
     fontSize: 11,
-    color: '#4b5563',
+    color: '#52525b',
     textAlign: 'center',
     lineHeight: 18,
   },
   termsLink: {
-    color: '#8b5cf6',
+    color: '#818cf8',
   },
   welcomeOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 100,
+  },
+  welcomeOverlayBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#09090b',
   },
   welcomeContent: {
     alignItems: 'center',
@@ -774,31 +738,31 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#6366f1',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
   },
   welcomeTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700' as const,
-    color: '#f3f4f6',
+    color: '#fafafa',
     marginBottom: 6,
   },
   welcomeUsername: {
     fontSize: 16,
     fontWeight: '500' as const,
-    color: '#a78bfa',
+    color: '#818cf8',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   modalBlur: {
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: 'hidden',
     width: '100%',
     maxWidth: 340,
@@ -807,8 +771,8 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalContentAndroid: {
-    backgroundColor: '#0f0a1a',
-    borderRadius: 14,
+    backgroundColor: '#18181b',
+    borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 340,
@@ -816,79 +780,80 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700' as const,
-    color: '#f3f4f6',
+    color: '#fafafa',
     textAlign: 'center',
     marginBottom: 12,
   },
   modalText: {
     fontSize: 14,
-    fontWeight: '500' as const,
-    color: '#9ca3af',
+    fontWeight: '400' as const,
+    color: '#a1a1aa',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 18,
   },
   modalSteps: {
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 10,
+    padding: 14,
     marginBottom: 14,
-    gap: 10,
+    gap: 12,
   },
   modalStepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   stepNumber: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepNumberText: {
     fontSize: 11,
-    fontWeight: '500' as const,
-    color: '#a78bfa',
+    fontWeight: '600' as const,
+    color: '#818cf8',
   },
   modalStep: {
     fontSize: 13,
-    color: '#9ca3af',
+    color: '#a1a1aa',
     flex: 1,
   },
   modalComingSoon: {
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
-    borderRadius: 6,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderRadius: 8,
     padding: 10,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   modalComingSoonText: {
     fontSize: 12,
-    color: '#8b5cf6',
+    fontWeight: '500' as const,
+    color: '#818cf8',
     textAlign: 'center',
   },
   modalTeamSignature: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#71717a',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 18,
   },
   modalButton: {
-    borderRadius: 8,
+    borderRadius: 10,
     overflow: 'hidden',
     marginBottom: 10,
   },
   modalButtonGradient: {
-    height: 44,
+    height: 46,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalButtonText: {
     fontSize: 14,
-    fontWeight: '500' as const,
+    fontWeight: '600' as const,
     color: '#fff',
   },
   modalCloseButton: {
@@ -898,6 +863,7 @@ const styles = StyleSheet.create({
   },
   modalCloseText: {
     fontSize: 13,
-    color: '#6b7280',
+    fontWeight: '500' as const,
+    color: '#71717a',
   },
 });
