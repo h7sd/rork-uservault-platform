@@ -440,6 +440,12 @@ export default function LoginScreen() {
               <Text style={styles.modalStep}>3. Verify your email address</Text>
               <Text style={styles.modalStep}>4. Come back here and log in</Text>
             </View>
+            <View style={styles.modalComingSoon}>
+              <Text style={styles.modalComingSoonText}>
+                We are working on fixing in-app registration as fast as possible!
+              </Text>
+            </View>
+            <Text style={styles.modalTeamSignature}>— Uservault team</Text>
             <TouchableOpacity
               style={styles.modalButton}
               onPress={handleOpenWebsite}
@@ -712,5 +718,26 @@ const styles = StyleSheet.create({
   modalCloseText: {
     fontSize: 15,
     color: '#9CA3AF',
+  },
+  modalComingSoon: {
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  modalComingSoonText: {
+    fontSize: 13,
+    color: '#A78BFA',
+    textAlign: 'center',
+    fontWeight: '500' as const,
+  },
+  modalTeamSignature: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontStyle: 'italic' as const,
+    textAlign: 'center',
+    marginBottom: 20,
   },
 });
