@@ -11,16 +11,19 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Eye, X, Play, Bell, Bookmark } from 'lucide-react-native';
+import { Heart, MessageCircle, Share2, MoreHorizontal, Eye, X, Play, Bell, Bookmark, Send, CornerDownRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import colors from '@/constants/colors';
-import { useTimelineApi, useStoriesApi, useLikePost, useCurrentUserProfile, useUnreadNotificationCount } from '@/hooks/useApi';
+import { useTimelineApi, useStoriesApi, useLikePost, useCurrentUserProfile, useUnreadNotificationCount, useCreateComment } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Story, Post } from '@/types';
 import VerifiedBadge from '@/components/VerifiedBadge';
@@ -111,12 +114,34 @@ function AnimatedStoryItem({ story, index }: { story: Story; index: number }) {
   );
 }
 
+interface CommentData {
+  id: number;
+  content: string;
+  user: {
+    id: number;
+    username: string;
+    name: string;
+    avatar_url: string;
+    verified?: boolean;
+  };
+  likes_count: number;
+  liked: boolean;
+  replies: CommentData[];
+  created_at: string;
+  parent_id?: number;
+}
+
 function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
   const [showReactionPicker, setShowReactionPicker] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
   const [imageLoading, setImageLoading] = useState<boolean>(true);
   const [showFullscreenVideo, setShowFullscreenVideo] = useState<boolean>(false);
   const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
+  const [showComments, setShowComments] = useState<boolean>(false);
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const [newComment, setNewComment] = useState<string>('');
+  const [replyingTo, setReplyingTo] = useState<CommentData | null>(null);
+  const [commentsLoading, setCommentsLoading] = useState<boolean>(false);
   
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -125,7 +150,9 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
   const bookmarkScale = useRef(new Animated.Value(1)).current;
   const fullscreenVideoRef = useRef<Video>(null);
   const likeMutation = useLikePost();
+  const createCommentMutation = useCreateComment();
   const router = useRouter();
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     Animated.parallel([
@@ -244,6 +271,166 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
     setShowFullscreenVideo(false);
   }, []);
 
+  const handleOpenComments = useCallback(() => {
+    setShowComments(true);
+    setCommentsLoading(true);
+    const mockComments: CommentData[] = [
+      {
+        id: 1,
+        content: 'Nice post! 🔥',
+        user: {
+          id: 101,
+          username: 'user1',
+          name: 'John Doe',
+          avatar_url: 'https://i.pravatar.cc/150?u=user1',
+          verified: true,
+        },
+        likes_count: 12,
+        liked: false,
+        replies: [
+          {
+            id: 11,
+            content: 'Totally agree!',
+            user: {
+              id: 102,
+              username: 'user2',
+              name: 'Jane Smith',
+              avatar_url: 'https://i.pravatar.cc/150?u=user2',
+            },
+            likes_count: 3,
+            liked: false,
+            replies: [],
+            created_at: '2h ago',
+            parent_id: 1,
+          },
+        ],
+        created_at: '3h ago',
+      },
+      {
+        id: 2,
+        content: 'Love this content!',
+        user: {
+          id: 103,
+          username: 'user3',
+          name: 'Mike Johnson',
+          avatar_url: 'https://i.pravatar.cc/150?u=user3',
+        },
+        likes_count: 5,
+        liked: true,
+        replies: [],
+        created_at: '5h ago',
+      },
+    ];
+    setTimeout(() => {
+      setComments(mockComments);
+      setCommentsLoading(false);
+    }, 500);
+  }, []);
+
+  const handleLikeComment = useCallback((commentId: number) => {
+    setComments(prev => prev.map(c => {
+      if (c.id === commentId) {
+        return {
+          ...c,
+          liked: !c.liked,
+          likes_count: c.liked ? c.likes_count - 1 : c.likes_count + 1,
+        };
+      }
+      if (c.replies.length > 0) {
+        return {
+          ...c,
+          replies: c.replies.map(r => 
+            r.id === commentId 
+              ? { ...r, liked: !r.liked, likes_count: r.liked ? r.likes_count - 1 : r.likes_count + 1 }
+              : r
+          ),
+        };
+      }
+      return c;
+    }));
+  }, []);
+
+  const handleReply = useCallback((comment: CommentData) => {
+    setReplyingTo(comment);
+  }, []);
+
+  const handleSendComment = useCallback(() => {
+    if (!newComment.trim()) return;
+    
+    const newCommentData: CommentData = {
+      id: Date.now(),
+      content: newComment,
+      user: {
+        id: currentUser?.id || 0,
+        username: currentUser?.username || 'me',
+        name: currentUser?.name || 'Me',
+        avatar_url: currentUser?.avatar || 'https://i.pravatar.cc/150?u=me',
+      },
+      likes_count: 0,
+      liked: false,
+      replies: [],
+      created_at: 'Just now',
+      parent_id: replyingTo?.id,
+    };
+
+    if (replyingTo) {
+      setComments(prev => prev.map(c => {
+        if (c.id === replyingTo.id) {
+          return { ...c, replies: [...c.replies, newCommentData] };
+        }
+        return c;
+      }));
+    } else {
+      setComments(prev => [newCommentData, ...prev]);
+    }
+
+    createCommentMutation.mutate({
+      postId: post.id,
+      content: newComment,
+      parentId: replyingTo?.id,
+    });
+
+    setNewComment('');
+    setReplyingTo(null);
+  }, [newComment, replyingTo, currentUser, post.id, createCommentMutation]);
+
+  const renderComment = useCallback((comment: CommentData, isReply: boolean = false) => (
+    <View key={comment.id} style={[styles.commentItem, isReply && styles.replyItem]}>
+      <Image source={{ uri: comment.user.avatar_url }} style={styles.commentAvatar} cachePolicy="memory-disk" />
+      <View style={styles.commentContent}>
+        <View style={styles.commentHeader}>
+          <Text style={styles.commentUsername}>{comment.user.name}</Text>
+          {comment.user.verified && <VerifiedBadge size={12} />}
+          <Text style={styles.commentTime}>{comment.created_at}</Text>
+        </View>
+        <Text style={styles.commentText}>{comment.content}</Text>
+        <View style={styles.commentActions}>
+          <TouchableOpacity 
+            style={styles.commentActionButton}
+            onPress={() => handleLikeComment(comment.id)}
+          >
+            <Heart 
+              size={16} 
+              color={comment.liked ? '#FF6B6B' : colors.dark.textSecondary}
+              fill={comment.liked ? '#FF6B6B' : 'none'}
+            />
+            <Text style={[styles.commentActionText, comment.liked && styles.commentActionTextActive]}>
+              {comment.likes_count}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.commentActionButton}
+            onPress={() => handleReply(comment)}
+          >
+            <CornerDownRight size={16} color={colors.dark.textSecondary} />
+            <Text style={styles.commentActionText}>Reply</Text>
+          </TouchableOpacity>
+        </View>
+        {comment.replies.map(reply => renderComment(reply, true))}
+      </View>
+    </View>
+  ), [handleLikeComment, handleReply]);
+
   return (
     <Animated.View style={[
       styles.post,
@@ -334,7 +521,7 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
                 />
               </Animated.View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleOpenComments}>
               <MessageCircle color={colors.dark.text} size={24} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButton}>
@@ -397,6 +584,77 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
             />
           )}
         </View>
+      </Modal>
+
+      <Modal
+        visible={showComments}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowComments(false)}
+      >
+        <KeyboardAvoidingView 
+          style={styles.commentsModalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={styles.commentsOverlay} onPress={() => setShowComments(false)} />
+          <View style={styles.commentsSheet}>
+            <View style={styles.commentsSheetHandle} />
+            <View style={styles.commentsHeader}>
+              <Text style={styles.commentsTitle}>Comments</Text>
+              <TouchableOpacity onPress={() => setShowComments(false)}>
+                <X color={colors.dark.text} size={24} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.commentsList} showsVerticalScrollIndicator={false}>
+              {commentsLoading ? (
+                <View style={styles.commentsLoading}>
+                  <ActivityIndicator color={colors.dark.accent} />
+                </View>
+              ) : comments.length === 0 ? (
+                <View style={styles.noComments}>
+                  <Text style={styles.noCommentsText}>No comments yet</Text>
+                  <Text style={styles.noCommentsSubtext}>Be the first to comment!</Text>
+                </View>
+              ) : (
+                comments.map(comment => renderComment(comment))
+              )}
+            </ScrollView>
+
+            <View style={styles.commentInputContainer}>
+              {replyingTo && (
+                <View style={styles.replyingToBar}>
+                  <Text style={styles.replyingToText}>Replying to @{replyingTo.user.username}</Text>
+                  <TouchableOpacity onPress={() => setReplyingTo(null)}>
+                    <X size={16} color={colors.dark.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <View style={styles.commentInputRow}>
+                <Image 
+                  source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150?u=me' }} 
+                  style={styles.commentInputAvatar}
+                />
+                <TextInput
+                  style={styles.commentInput}
+                  placeholder={replyingTo ? `Reply to @${replyingTo.user.username}...` : 'Add a comment...'}
+                  placeholderTextColor={colors.dark.textSecondary}
+                  value={newComment}
+                  onChangeText={setNewComment}
+                  multiline
+                  maxLength={500}
+                />
+                <TouchableOpacity 
+                  style={[styles.sendButton, !newComment.trim() && styles.sendButtonDisabled]}
+                  onPress={handleSendComment}
+                  disabled={!newComment.trim()}
+                >
+                  <Send size={20} color={newComment.trim() ? colors.dark.accent : colors.dark.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -1022,5 +1280,165 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.dark.textSecondary,
     marginTop: 8,
+  },
+  commentsModalContainer: {
+    flex: 1,
+  },
+  commentsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  commentsSheet: {
+    backgroundColor: colors.dark.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    minHeight: '50%',
+  },
+  commentsSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.dark.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+  },
+  commentsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.dark.border,
+  },
+  commentsTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: colors.dark.text,
+  },
+  commentsList: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  commentsLoading: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  noComments: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  noCommentsText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: colors.dark.text,
+  },
+  noCommentsSubtext: {
+    fontSize: 14,
+    color: colors.dark.textSecondary,
+    marginTop: 4,
+  },
+  commentItem: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  replyItem: {
+    marginLeft: 8,
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.dark.border,
+  },
+  commentAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  commentUsername: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: colors.dark.text,
+  },
+  commentTime: {
+    fontSize: 12,
+    color: colors.dark.textSecondary,
+  },
+  commentText: {
+    fontSize: 14,
+    color: colors.dark.text,
+    lineHeight: 20,
+  },
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 8,
+  },
+  commentActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  commentActionText: {
+    fontSize: 12,
+    color: colors.dark.textSecondary,
+  },
+  commentActionTextActive: {
+    color: '#FF6B6B',
+  },
+  commentInputContainer: {
+    borderTopWidth: 1,
+    borderTopColor: colors.dark.border,
+    paddingBottom: 34,
+  },
+  replyingToBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: colors.dark.surface,
+  },
+  replyingToText: {
+    fontSize: 13,
+    color: colors.dark.textSecondary,
+  },
+  commentInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  commentInputAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  commentInput: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.dark.text,
+    maxHeight: 100,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.dark.surface,
+    borderRadius: 20,
+  },
+  sendButton: {
+    padding: 8,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
 });

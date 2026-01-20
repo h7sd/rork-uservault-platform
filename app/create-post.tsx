@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,8 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { X, Image as ImageIcon, Video as VideoIcon } from 'lucide-react-native';
-import * as ImagePicker from 'expo-image-picker';
 
 import colors from '@/constants/colors';
 import { useCreatePost, useUploadPostImage, useUploadPostVideo } from '@/hooks/useApi';
@@ -25,6 +24,35 @@ export default function CreatePostScreen() {
   const [imageFile, setImageFile] = useState<any>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const router = useRouter();
+  const params = useLocalSearchParams<{ mediaUri?: string; mediaType?: string }>();
+
+  useEffect(() => {
+    const loadPassedMedia = async () => {
+      if (params.mediaUri && params.mediaType) {
+        setSelectedImage(params.mediaUri);
+        setMediaType(params.mediaType as 'image' | 'video');
+        
+        if (Platform.OS === 'web') {
+          try {
+            const response = await fetch(params.mediaUri);
+            const blob = await response.blob();
+            setImageFile(blob);
+          } catch (e) {
+            console.log('[CreatePost] Failed to load media blob:', e);
+          }
+        } else {
+          const extension = params.mediaType === 'video' ? 'mp4' : 'jpg';
+          const mimeType = params.mediaType === 'video' ? 'video/mp4' : 'image/jpeg';
+          setImageFile({
+            uri: params.mediaUri,
+            name: `media.${extension}`,
+            type: mimeType,
+          });
+        }
+      }
+    };
+    loadPassedMedia();
+  }, [params.mediaUri, params.mediaType]);
 
   const createPostMutation = useCreatePost();
   const uploadImageMutation = useUploadPostImage();
@@ -32,72 +60,7 @@ export default function CreatePostScreen() {
 
   const isLoading = createPostMutation.isPending || uploadImageMutation.isPending || uploadVideoMutation.isPending;
 
-  const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission Required', 'Permission to access camera roll is required!');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setSelectedImage(asset.uri);
-      setMediaType('image');
-      
-      if (Platform.OS === 'web') {
-        const response = await fetch(asset.uri);
-        const blob = await response.blob();
-        setImageFile(blob);
-      } else {
-        setImageFile({
-          uri: asset.uri,
-          name: 'photo.jpg',
-          type: 'image/jpeg',
-        });
-      }
-    }
-  };
-
-  const pickVideo = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (permissionResult.granted === false) {
-      Alert.alert('Permission Required', 'Permission to access camera roll is required!');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setSelectedImage(asset.uri);
-      setMediaType('video');
-      
-      if (Platform.OS === 'web') {
-        const response = await fetch(asset.uri);
-        const blob = await response.blob();
-        setImageFile(blob);
-      } else {
-        setImageFile({
-          uri: asset.uri,
-          name: 'video.mp4',
-          type: 'video/mp4',
-        });
-      }
-    }
-  };
 
   const handleCreatePost = async () => {
     if (!content.trim() && !selectedImage) {
@@ -203,16 +166,7 @@ export default function CreatePostScreen() {
           </View>
         )}
 
-        <View style={styles.actions}>
-          <TouchableOpacity onPress={pickImage} style={styles.actionButton} disabled={isLoading || !!selectedImage}>
-            <ImageIcon color={colors.dark.accent} size={24} />
-            <Text style={styles.actionText}>Add Photo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={pickVideo} style={styles.actionButton} disabled={isLoading || !!selectedImage}>
-            <VideoIcon color={colors.dark.accent} size={24} />
-            <Text style={styles.actionText}>Add Video</Text>
-          </TouchableOpacity>
-        </View>
+
 
         <Text style={styles.charCount}>
           {content.length} / 2000

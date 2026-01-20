@@ -1,7 +1,8 @@
 import { Tabs, useRouter } from "expo-router";
-import { Home, Compass, Plus, MessageCircle } from "lucide-react-native";
-import React, { useRef, useEffect } from "react";
-import { View, StyleSheet, TouchableOpacity, Image, Animated } from "react-native";
+import { Home, Compass, Plus, MessageCircle, Image as ImageIcon, Video, X } from "lucide-react-native";
+import React, { useRef, useEffect, useState } from "react";
+import { View, StyleSheet, TouchableOpacity, Image, Animated, Modal, Text, Pressable } from "react-native";
+import * as ImagePicker from 'expo-image-picker';
 
 
 import colors from "@/constants/colors";
@@ -108,9 +109,68 @@ function CreateButton({ onPress }: { onPress: () => void }) {
 export default function TabLayout() {
   const router = useRouter();
   const { currentUser } = useAuth();
+  const [showCreateSheet, setShowCreateSheet] = useState(false);
+  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  const openSheet = () => {
+    setShowCreateSheet(true);
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      friction: 8,
+      tension: 65,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeSheet = () => {
+    Animated.timing(slideAnim, {
+      toValue: 300,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowCreateSheet(false);
+    });
+  };
+
+  const handlePostPicture = async () => {
+    closeSheet();
+    setTimeout(async () => {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permissionResult.granted === false) {
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]) {
+        router.push({ pathname: '/create-post', params: { mediaUri: result.assets[0].uri, mediaType: 'image' } });
+      }
+    }, 300);
+  };
+
+  const handlePostVideo = async () => {
+    closeSheet();
+    setTimeout(async () => {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permissionResult.granted === false) {
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]) {
+        router.push({ pathname: '/create-post', params: { mediaUri: result.assets[0].uri, mediaType: 'video' } });
+      }
+    }, 300);
+  };
 
   const handleCreate = () => {
-    router.push('/create-post');
+    openSheet();
   };
 
   return (
@@ -219,10 +279,101 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+
+      <Modal
+        visible={showCreateSheet}
+        transparent
+        animationType="none"
+        onRequestClose={closeSheet}
+      >
+        <Pressable style={styles.sheetOverlay} onPress={closeSheet}>
+          <Animated.View 
+            style={[
+              styles.sheetContainer,
+              { transform: [{ translateY: slideAnim }] }
+            ]}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={styles.sheetHandle} />
+              
+              <TouchableOpacity style={styles.sheetOption} onPress={handlePostPicture}>
+                <View style={styles.sheetIconContainer}>
+                  <ImageIcon color={colors.dark.accent} size={24} />
+                </View>
+                <Text style={styles.sheetOptionText}>Post Picture</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.sheetOption} onPress={handlePostVideo}>
+                <View style={styles.sheetIconContainer}>
+                  <Video color={colors.dark.accent} size={24} />
+                </View>
+                <Text style={styles.sheetOptionText}>Post Video</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.sheetCancelButton} onPress={closeSheet}>
+                <Text style={styles.sheetCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  sheetContainer: {
+    backgroundColor: colors.dark.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    paddingTop: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.dark.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  sheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    gap: 16,
+  },
+  sheetIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.dark.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetOptionText: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    color: colors.dark.text,
+  },
+  sheetCancelButton: {
+    marginTop: 8,
+    marginHorizontal: 24,
+    paddingVertical: 16,
+    backgroundColor: colors.dark.surface,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  sheetCancelText: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    color: colors.dark.textSecondary,
+  },
   plusButtonGlow: {
     position: 'absolute',
     width: 60,
