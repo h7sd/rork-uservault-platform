@@ -1,14 +1,12 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import colors from '@/constants/colors';
+import React, { useEffect } from 'react';
+import { useRouter } from 'expo-router';
 
 export default function CreatePlaceholder() {
-  return <View style={styles.container} />;
-}
+  const router = useRouter();
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.dark.background,
-  },
-});
+  useEffect(() => {
+    router.replace('/create-post');
+  }, []);
+
+  return null;
+}
