@@ -174,6 +174,7 @@ export default function TabLayout() {
   };
 
   return (
+    <>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.dark.text,
@@ -317,6 +318,7 @@ export default function TabLayout() {
           </Animated.View>
         </Pressable>
       </Modal>
+    </>
   );
 }
 
