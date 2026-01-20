@@ -12,6 +12,7 @@ import {
   Animated,
   Linking,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Check } from 'lucide-react-native';
@@ -115,6 +116,7 @@ export default function LoginScreen() {
   const [showWelcome, setShowWelcome] = useState<boolean>(false);
   const [welcomeUsername, setWelcomeUsername] = useState<string>('');
   const [showPasswordField, setShowPasswordField] = useState<boolean>(false);
+  const [showRegisterModal, setShowRegisterModal] = useState<boolean>(false);
   
   const { login } = useAuth();
   const router = useRouter();
@@ -243,8 +245,12 @@ export default function LoginScreen() {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    console.log('[Login] Navigating to /register');
-    router.push('/register');
+    setShowRegisterModal(true);
+  };
+
+  const handleOpenWebsite = () => {
+    Linking.openURL('https://uservault.net/register');
+    setShowRegisterModal(false);
   };
 
   const handleForgotPassword = () => {
@@ -415,6 +421,42 @@ export default function LoginScreen() {
         username={welcomeUsername}
         onComplete={handleWelcomeComplete}
       />
+
+      <Modal
+        visible={showRegisterModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRegisterModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Create an Account</Text>
+            <Text style={styles.modalText}>
+              To create an account, please visit our website and complete the registration process:
+            </Text>
+            <View style={styles.modalSteps}>
+              <Text style={styles.modalStep}>1. Go to uservault.net/register</Text>
+              <Text style={styles.modalStep}>2. Create your account</Text>
+              <Text style={styles.modalStep}>3. Verify your email address</Text>
+              <Text style={styles.modalStep}>4. Come back here and log in</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={handleOpenWebsite}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalButtonText}>Open Website</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setShowRegisterModal(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.modalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -607,5 +649,68 @@ const styles = StyleSheet.create({
   },
   gradientBackground: {
     ...StyleSheet.absoluteFillObject,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 20,
+    padding: 28,
+    width: '100%',
+    maxWidth: 360,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalText: {
+    fontSize: 15,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  modalSteps: {
+    backgroundColor: 'rgba(45, 45, 48, 0.6)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  modalStep: {
+    fontSize: 14,
+    color: '#D1D5DB',
+    lineHeight: 26,
+  },
+  modalButton: {
+    height: 52,
+    backgroundColor: '#1D9BF0',
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#000000',
+  },
+  modalCloseButton: {
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseText: {
+    fontSize: 15,
+    color: '#9CA3AF',
   },
 });
