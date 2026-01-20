@@ -360,8 +360,6 @@ export const [AuthContext, useAuth] = createContextHook(() => {
 
   const registerVerify = useCallback(async (data: {
     token: string;
-    password: string;
-    password_confirmation: string;
     username: string;
     first_name: string;
     last_name?: string;

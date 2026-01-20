@@ -127,8 +127,7 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState<string>('');
   const [verificationToken, setVerificationToken] = useState<string>('');
   
-  const [password, setPassword] = useState<string>('');
-  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  
   const [username, setUsername] = useState<string>('');
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
@@ -349,24 +348,10 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     console.log('[Register] Step 2: Complete registration');
     
-    if (!password.trim() || !confirmPassword.trim() || !username.trim() || !firstName.trim()) {
+    if (!username.trim() || !firstName.trim()) {
       console.log('[Register] Validation failed: missing required fields');
       shakeInput();
       setErrorMessage('Please fill in all required fields');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      console.log('[Register] Validation failed: passwords do not match');
-      shakeInput();
-      setErrorMessage('Passwords do not match');
-      return;
-    }
-
-    if (password.length < 8) {
-      console.log('[Register] Validation failed: password too short');
-      shakeInput();
-      setErrorMessage('Password must be at least 8 characters');
       return;
     }
 
@@ -402,8 +387,6 @@ export default function RegisterScreen() {
       
       const result = await registerVerify({
         token: verificationToken,
-        password,
-        password_confirmation: confirmPassword,
         username: username.trim(),
         first_name: firstName.trim(),
         last_name: lastName.trim() || undefined,
@@ -842,46 +825,7 @@ export default function RegisterScreen() {
               </Animated.View>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Password *</Text>
-              <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Min. 8 characters"
-                  placeholderTextColor="#6B7280"
-                  value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    setErrorMessage('');
-                  }}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  editable={!isLoading}
-                  returnKeyType="next"
-                />
-              </Animated.View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Confirm Password *</Text>
-              <Animated.View style={[styles.inputWrapper, { transform: [{ translateX: shakeAnim }] }]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Confirm password"
-                  placeholderTextColor="#6B7280"
-                  value={confirmPassword}
-                  onChangeText={(text) => {
-                    setConfirmPassword(text);
-                    setErrorMessage('');
-                  }}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  editable={!isLoading}
-                  onSubmitEditing={handleRegister}
-                  returnKeyType="done"
-                />
-              </Animated.View>
-            </View>
+            
 
             <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
               <TouchableOpacity

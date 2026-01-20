@@ -1286,8 +1286,6 @@ class ApiService {
 
   async registerVerify(data: {
     token: string;
-    password: string;
-    password_confirmation: string;
     username: string;
     first_name: string;
     last_name?: string;
@@ -1304,8 +1302,6 @@ class ApiService {
     // Build query parameters for GET request
     const params = new URLSearchParams();
     params.append('token', data.token);
-    params.append('password', data.password);
-    params.append('password_confirmation', data.password_confirmation);
     params.append('username', data.username);
     params.append('first_name', data.first_name);
     if (data.last_name) params.append('last_name', data.last_name);
