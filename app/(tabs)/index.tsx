@@ -1,11 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   ScrollView, 
   TouchableOpacity, 
-  Image, 
   Animated,
   Dimensions,
   RefreshControl,
@@ -13,6 +12,7 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Eye, X, Play, Bell, Bookmark } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -99,7 +99,7 @@ function AnimatedStoryItem({ story, index }: { story: Story; index: number }) {
             style={styles.storyGradientBorder}
           >
             <View style={styles.storyImageWrapper}>
-              <Image source={{ uri: avatar }} style={styles.storyAvatar} />
+              <Image source={{ uri: avatar }} style={styles.storyAvatar} cachePolicy="memory-disk" />
             </View>
           </LinearGradient>
         </Animated.View>
@@ -257,7 +257,7 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
           router.push(`/user/${user.username || user.id}`);
         }}>
           <View style={styles.avatarGlow}>
-            <Image source={{ uri: avatar }} style={styles.postAvatar} />
+            <Image source={{ uri: avatar }} style={styles.postAvatar} cachePolicy="memory-disk" />
           </View>
           <View>
             <View style={styles.usernameRow}>
@@ -285,7 +285,8 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
           <Image
             source={{ uri: thumbnailUrl || videoUrl }}
             style={styles.postImage}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
           />
           <View style={styles.videoOverlay}>
             <View style={styles.playButtonCircle}>
@@ -298,7 +299,8 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
           <Image 
             source={{ uri: postImage }} 
             style={styles.postImage}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
             onError={() => {
               setImageError(true);
               setImageLoading(false);
@@ -574,7 +576,8 @@ export default function HomeScreen() {
                 >
                   <Image 
                     source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }} 
-                    style={styles.addStoryAvatar} 
+                    style={styles.addStoryAvatar}
+                    cachePolicy="memory-disk"
                   />
                   <View style={styles.addStoryButton}>
                     <Text style={styles.addStoryText}>+</Text>
