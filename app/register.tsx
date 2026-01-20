@@ -568,6 +568,8 @@ export default function RegisterScreen() {
                     We are working on fixing in-app registration as fast as possible!
                   </Text>
                 </View>
+
+                <Text style={styles.teamSignatureInBox}>— Uservault team</Text>
               </View>
 
               <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
@@ -580,9 +582,7 @@ export default function RegisterScreen() {
                 </TouchableOpacity>
               </Animated.View>
 
-              <View style={styles.teamSignature}>
-                <Text style={styles.teamSignatureText}>Uservault team</Text>
-              </View>
+
             </Animated.View>
           </KeyboardAvoidingView>
         </ScrollView>
@@ -1130,13 +1130,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500' as const,
   },
-  teamSignature: {
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  teamSignatureText: {
+  teamSignatureInBox: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#9CA3AF',
     fontStyle: 'italic' as const,
+    marginTop: 16,
+    textAlign: 'center' as const,
   },
 });
