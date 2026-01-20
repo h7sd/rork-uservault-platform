@@ -1,9 +1,8 @@
 import { Tabs, useRouter } from "expo-router";
-import { Home, Compass, Plus, MessageCircle, User } from "lucide-react-native";
+import { Home, Compass, Plus, MessageCircle } from "lucide-react-native";
 import React, { useRef, useEffect } from "react";
-import { View, StyleSheet, TouchableOpacity, Text, Modal, Image, Animated } from "react-native";
-import { BlurView } from "expo-blur";
-import { Platform } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Image, Animated } from "react-native";
+
 
 import colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
@@ -106,144 +105,15 @@ function CreateButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-function AnimatedMenuItem({ 
-  title, 
-  onPress, 
-  delay,
-  isCancel = false 
-}: { 
-  title: string; 
-  onPress: () => void; 
-  delay: number;
-  isCancel?: boolean;
-}) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        delay,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        delay,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.97,
-      friction: 8,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 8,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  return (
-    <Animated.View style={{
-      opacity: fadeAnim,
-      transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
-    }}>
-      <TouchableOpacity
-        style={[styles.menuItem, isCancel && styles.cancelItem]}
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        activeOpacity={1}
-      >
-        <Text style={[styles.menuItemText, isCancel && styles.cancelText]}>
-          {title}
-        </Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
 export default function TabLayout() {
   const router = useRouter();
   const { currentUser } = useAuth();
-  const [showCreateMenu, setShowCreateMenu] = React.useState(false);
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    if (showCreateMenu) {
-      Animated.timing(overlayOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      overlayOpacity.setValue(0);
-    }
-  }, [showCreateMenu]);
-
-  const handleCreateOption = (type: 'post' | 'photo' | 'story') => {
-    setShowCreateMenu(false);
-    if (type === 'story') {
-      router.push('/create-story');
-    } else {
-      router.push('/create-post');
-    }
+  const handleCreate = () => {
+    router.push('/create-post');
   };
 
   return (
-    <>
-      <Modal
-        visible={showCreateMenu}
-        transparent
-        animationType="none"
-        onRequestClose={() => setShowCreateMenu(false)}
-      >
-        <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]}>
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            activeOpacity={1}
-            onPress={() => setShowCreateMenu(false)}
-          />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Create</Text>
-            
-            <AnimatedMenuItem 
-              title="Text Post" 
-              onPress={() => handleCreateOption('post')} 
-              delay={50}
-            />
-            <AnimatedMenuItem 
-              title="Photo Post" 
-              onPress={() => handleCreateOption('photo')} 
-              delay={100}
-            />
-            <AnimatedMenuItem 
-              title="Story" 
-              onPress={() => handleCreateOption('story')} 
-              delay={150}
-            />
-            <AnimatedMenuItem 
-              title="Cancel" 
-              onPress={() => setShowCreateMenu(false)} 
-              delay={200}
-              isCancel
-            />
-          </View>
-        </Animated.View>
-      </Modal>
-
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.dark.text,
@@ -306,14 +176,14 @@ export default function TabLayout() {
         options={{
           title: "Create",
           tabBarIcon: () => (
-            <CreateButton onPress={() => setShowCreateMenu(true)} />
+            <CreateButton onPress={handleCreate} />
           ),
           tabBarLabel: () => null,
         }}
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
-            setShowCreateMenu(true);
+            handleCreate();
           },
         }}
       />
@@ -349,17 +219,10 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
-    </>
   );
 }
 
 const styles = StyleSheet.create({
-  createButtonWrapper: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 4,
-  },
   plusButtonGlow: {
     position: 'absolute',
     width: 60,
@@ -382,56 +245,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: colors.dark.card,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    paddingBottom: 50,
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: colors.dark.border,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '700' as const,
-    color: colors.dark.text,
-    marginBottom: 20,
-    paddingHorizontal: 4,
-  },
-  menuItem: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    marginVertical: 4,
-    backgroundColor: colors.dark.surface,
-  },
-  menuItemText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: colors.dark.text,
-    textAlign: 'center',
-  },
-  cancelItem: {
-    marginTop: 12,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.dark.border,
-  },
-  cancelText: {
-    color: colors.dark.textSecondary,
   },
   avatarIcon: {
     width: 30,
