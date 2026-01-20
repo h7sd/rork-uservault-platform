@@ -280,6 +280,7 @@ export default function RegisterScreen() {
   const handleWebViewSuccess = useCallback((token: string) => {
     console.log('[Register] WebView success! Token:', token);
     setIsLoading(false);
+    setWebViewTrigger(false);
     setVerificationToken(token);
     setStep(2);
     if (Platform.OS !== 'web') {
@@ -621,15 +622,6 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
-      {useWebView && Platform.OS !== 'web' && (
-        <LivewireWebView
-          email={email}
-          action="signup"
-          trigger={webViewTrigger}
-          onSuccess={handleWebViewSuccess}
-          onError={handleWebViewError}
-        />
-      )}
       <LinearGradient
         colors={['#1a1a2e', '#0f0f1e', '#0a0a0a']}
         style={styles.gradientBackground}
