@@ -143,7 +143,7 @@ export default function RegisterScreen() {
   const [showWelcome, setShowWelcome] = useState<boolean>(false);
   const [welcomeUsername, setWelcomeUsername] = useState<string>('');
   
-  const { registerVerify } = useAuth();
+  const { registerVerify, registerSendCode } = useAuth();
   const [webViewTrigger, setWebViewTrigger] = useState(false);
   const useWebView = Platform.OS !== 'web';
   const router = useRouter();
@@ -318,10 +318,31 @@ export default function RegisterScreen() {
       console.log('[Register] Using WebView for registration...');
       setWebViewTrigger(true);
     } else {
-      console.log('[Register] WebView not available, showing manual instructions');
-      setIsLoading(false);
-      setVerificationToken('manual');
-      setStep(2);
+      console.log('[Register] Using direct API for web registration...');
+      try {
+        const result = await registerSendCode(email.trim());
+        console.log('[Register] API registerSendCode result:', result);
+        
+        if (result.success && result.token) {
+          console.log('[Register] Email sent successfully, token:', result.token);
+          setVerificationToken(result.token);
+          setStep(2);
+          if (Platform.OS !== 'web') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+        } else {
+          console.error('[Register] API error:', result.error);
+          setErrorMessage(result.error || 'Failed to send verification email');
+          shakeInput();
+        }
+      } catch (error) {
+        console.error('[Register] Exception:', error);
+        const message = error instanceof Error ? error.message : 'Failed to send verification email';
+        setErrorMessage(message);
+        shakeInput();
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
