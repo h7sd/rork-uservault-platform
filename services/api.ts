@@ -684,20 +684,31 @@ class ApiService {
     return this.post('/timeline/post/comment/create', body);
   }
 
-  async getPostComments(postId: number, cursor: number = 0): Promise<any> {
-    console.log('[API] fetching comments for post:', postId);
+  async getPostComments(hashId: string, cursor: number = 0): Promise<any> {
+    console.log('[API] fetching comments for post hashId:', hashId);
     if (!this.authToken) {
       throw new Error('Not authenticated');
     }
-    return this.get(`/timeline/post/${postId}/comments`, { cursor });
+    return this.get(`/timeline/post/${hashId}/comments`, { cursor });
   }
 
-  async likeComment(commentId: number): Promise<any> {
-    console.log('[API] liking comment:', commentId);
+  async addCommentReaction(commentId: number, unifiedId: string = '1f44d'): Promise<any> {
+    console.log('[API] adding reaction to comment:', commentId, 'unified:', unifiedId);
     if (!this.authToken) {
       throw new Error('Not authenticated');
     }
-    return this.post('/timeline/post/comment/like', { comment_id: commentId });
+    return this.post('/timeline/comment/reaction/add', { comment_id: commentId, unified_id: unifiedId });
+  }
+
+  async deleteComment(commentId: number): Promise<any> {
+    console.log('[API] deleting comment:', commentId);
+    if (!this.authToken) {
+      throw new Error('Not authenticated');
+    }
+    return this.request('/timeline/post/comment/delete', {
+      method: 'DELETE',
+      body: JSON.stringify({ id: commentId }),
+    });
   }
 
   async voteOnPoll(pollId: number, choiceIndex: number): Promise<any> {

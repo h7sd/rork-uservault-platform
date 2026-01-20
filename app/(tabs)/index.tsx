@@ -150,7 +150,7 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
   const [localComments, setLocalComments] = useState<CommentData[]>([]);
   const [newComment, setNewComment] = useState<string>('');
   const [replyingTo, setReplyingTo] = useState<CommentData | null>(null);
-  const [activePostId, setActivePostId] = useState<number | null>(null);
+  const [activePostHashId, setActivePostHashId] = useState<string | null>(null);
   
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -165,7 +165,7 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
   const { currentUser } = useAuth();
   
   const { data: commentsData, isLoading: commentsLoading, refetch: refetchComments } = usePostCommentsApi(
-    activePostId
+    activePostHashId
   );
 
   useEffect(() => {
@@ -287,12 +287,12 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
 
   const handleOpenComments = useCallback(() => {
     setShowComments(true);
-    setActivePostId(post.id);
+    setActivePostHashId(post.hash_id);
     setLocalComments([]);
-  }, [post.id]);
+  }, [post.hash_id]);
 
   const handleLikeComment = useCallback((commentId: number) => {
-    likeCommentMutation.mutate(commentId);
+    likeCommentMutation.mutate({ commentId });
   }, [likeCommentMutation]);
 
   const handleReply = useCallback((comment: CommentData) => {

@@ -429,19 +429,19 @@ export function useCreateComment() {
   });
 }
 
-export function usePostCommentsApi(postId: number | null, cursor: number = 0) {
+export function usePostCommentsApi(hashId: string | null, cursor: number = 0) {
   const { isLoading: authLoading, authToken } = useAuth();
   
   return useQuery({
-    queryKey: ['post', postId, 'comments', cursor],
+    queryKey: ['post', hashId, 'comments', cursor],
     queryFn: async () => {
-      if (!postId) throw new Error('No post ID');
-      console.log('[useApi] Fetching comments for post:', postId);
-      const response = await api.getPostComments(postId, cursor);
+      if (!hashId) throw new Error('No post hash ID');
+      console.log('[useApi] Fetching comments for post hashId:', hashId);
+      const response = await api.getPostComments(hashId, cursor);
       console.log('[useApi] Comments response:', JSON.stringify(response).slice(0, 500));
       return response;
     },
-    enabled: !authLoading && !!authToken && !!postId,
+    enabled: !authLoading && !!authToken && !!hashId,
   });
 }
 
@@ -449,9 +449,22 @@ export function useLikeComment() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (commentId: number) => api.likeComment(commentId),
+    mutationFn: (data: { commentId: number; unifiedId?: string }) => 
+      api.addCommentReaction(data.commentId, data.unifiedId || '1f44d'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['post'] });
+    },
+  });
+}
+
+export function useDeleteComment() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (commentId: number) => api.deleteComment(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['post'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     },
   });
 }
