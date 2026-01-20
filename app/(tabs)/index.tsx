@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -14,9 +14,10 @@ import {
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Eye, X, Play, Bell } from 'lucide-react-native';
+import { Heart, MessageCircle, Share2, MoreHorizontal, Eye, X, Play, Bell, Bookmark } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import colors from '@/constants/colors';
 import { useTimelineApi, useStoriesApi, useLikePost, useCurrentUserProfile, useUnreadNotificationCount } from '@/hooks/useApi';
@@ -27,7 +28,7 @@ import { FREQUENTLY_USED_EMOJIS, EMOJI_CATEGORIES, getEmojiByUnified, type Emoji
 
 const { width } = Dimensions.get('window');
 
-function StoryItem({ story }: { story: Story }) {
+function AnimatedStoryItem({ story, index }: { story: Story; index: number }) {
   const router = useRouter();
   const user = story.relations.user;
   const username = user.name || 'user';
@@ -36,33 +37,112 @@ function StoryItem({ story }: { story: Story }) {
     avatar = `https://uservault.net${avatar.startsWith('/') ? '' : '/'}${avatar}`;
   }
 
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const pressScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        delay: index * 80,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        delay: index * 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const handlePressIn = () => {
+    Animated.spring(pressScale, {
+      toValue: 0.92,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(pressScale, {
+      toValue: 1,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  };
+
   const handlePress = () => {
     router.push(`/story-viewer?storyUuid=${story.story_uuid}`);
   };
 
   return (
-    <TouchableOpacity style={styles.storyItem} onPress={handlePress}>
-      <View style={[styles.storyBorder, story.is_seen && styles.storyBorderViewed]}>
-        <Image source={{ uri: avatar }} style={styles.storyAvatar} />
-      </View>
-      <Text style={styles.storyUsername} numberOfLines={1}>
-        {username}
-      </Text>
-    </TouchableOpacity>
+    <Animated.View style={{ 
+      opacity: fadeAnim, 
+      transform: [{ scale: scaleAnim }] 
+    }}>
+      <TouchableOpacity 
+        style={styles.storyItem} 
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+      >
+        <Animated.View style={{ transform: [{ scale: pressScale }] }}>
+          <LinearGradient
+            colors={story.is_seen ? ['#3A3A3A', '#2A2A2A'] : ['#FF6B6B', '#FF8E53', '#FFBA5A']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.storyGradientBorder}
+          >
+            <View style={styles.storyImageWrapper}>
+              <Image source={{ uri: avatar }} style={styles.storyAvatar} />
+            </View>
+          </LinearGradient>
+        </Animated.View>
+        <Text style={styles.storyUsername} numberOfLines={1}>
+          {username}
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
-
-
-function PostItem({ post }: { post: Post }) {
+function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
   const [showReactionPicker, setShowReactionPicker] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
   const [imageLoading, setImageLoading] = useState<boolean>(true);
   const [showFullscreenVideo, setShowFullscreenVideo] = useState<boolean>(false);
+  const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
+  
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const bookmarkScale = useRef(new Animated.Value(1)).current;
   const fullscreenVideoRef = useRef<Video>(null);
   const likeMutation = useLikePost();
   const router = useRouter();
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        delay: index * 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        delay: index * 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const user = post.relations.user;
   const username = user.username || 'unknown';
@@ -76,8 +156,8 @@ function PostItem({ post }: { post: Post }) {
 
   const reactions = post.relations.reactions || [];
   
-  const reactionCounts = reactions.reduce((acc: Record<string, { emoji: string; count: number }>, reaction: any, index: number) => {
-    const unifiedId = reaction.unified_id || `fallback-${index}`;
+  const reactionCounts = reactions.reduce((acc: Record<string, { emoji: string; count: number }>, reaction: any, idx: number) => {
+    const unifiedId = reaction.unified_id || `fallback-${idx}`;
     const emojiData = getEmojiByUnified(unifiedId);
     const emojiChar = emojiData?.emoji || '❤️';
     
@@ -89,7 +169,35 @@ function PostItem({ post }: { post: Post }) {
   }, {} as Record<string, { emoji: string; count: number }>);
 
   const handleReactionPress = () => {
+    Animated.sequence([
+      Animated.timing(heartScale, {
+        toValue: 1.4,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(heartScale, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
     setShowReactionPicker(true);
+  };
+
+  const handleBookmarkPress = () => {
+    setIsBookmarked(!isBookmarked);
+    Animated.sequence([
+      Animated.timing(bookmarkScale, {
+        toValue: 1.3,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(bookmarkScale, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   const handleSelectReaction = (emojiData: Emoji) => {
@@ -137,15 +245,20 @@ function PostItem({ post }: { post: Post }) {
   }, []);
 
   return (
-    <View style={styles.post}>
+    <Animated.View style={[
+      styles.post,
+      {
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim }],
+      }
+    ]}>
       <View style={styles.postHeader}>
         <TouchableOpacity style={styles.postUser} onPress={() => {
           router.push(`/user/${user.username || user.id}`);
         }}>
-          <Image 
-            source={{ uri: avatar }} 
-            style={styles.postAvatar} 
-          />
+          <View style={styles.avatarGlow}>
+            <Image source={{ uri: avatar }} style={styles.postAvatar} />
+          </View>
           <View>
             <View style={styles.usernameRow}>
               <Text style={styles.postUsername}>{displayName}</Text>
@@ -154,12 +267,14 @@ function PostItem({ post }: { post: Post }) {
             <Text style={styles.postTimestamp}>{post.date.time_ago}</Text>
           </View>
         </TouchableOpacity>
-        <TouchableOpacity>
-          <MoreHorizontal color={colors.dark.text} size={20} />
+        <TouchableOpacity style={styles.moreButton}>
+          <MoreHorizontal color={colors.dark.textSecondary} size={20} />
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.postContent}>{post.content}</Text>
+      {post.content && (
+        <Text style={styles.postContent}>{post.content}</Text>
+      )}
 
       {postMedia && isVideo && videoUrl ? (
         <TouchableOpacity 
@@ -172,9 +287,9 @@ function PostItem({ post }: { post: Post }) {
             style={styles.postImage}
             resizeMode="cover"
           />
-          <View style={styles.videoPlayButton}>
+          <View style={styles.videoOverlay}>
             <View style={styles.playButtonCircle}>
-              <Play color={colors.dark.text} size={32} fill={colors.dark.text} />
+              <Play color="#FFF" size={28} fill="#FFF" />
             </View>
           </View>
         </TouchableOpacity>
@@ -202,16 +317,45 @@ function PostItem({ post }: { post: Post }) {
               <ActivityIndicator size="large" color={colors.dark.accent} />
             </View>
           )}
-          {imageError && (
-            <View style={styles.imageErrorOverlay}>
-              <Text style={styles.imageErrorText}>Failed to load image</Text>
-              <Text style={styles.imageErrorUrl} numberOfLines={2}>{postImage}</Text>
-            </View>
-          )}
         </View>
       ) : null}
 
       <View style={styles.postFooter}>
+        <View style={styles.postActions}>
+          <View style={styles.leftActions}>
+            <TouchableOpacity onPress={handleReactionPress} style={styles.actionButton}>
+              <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+                <Heart 
+                  color={Object.keys(reactionCounts).length > 0 ? '#FF6B6B' : colors.dark.text} 
+                  size={24} 
+                  fill={Object.keys(reactionCounts).length > 0 ? '#FF6B6B' : 'none'}
+                />
+              </Animated.View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton}>
+              <MessageCircle color={colors.dark.text} size={24} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton}>
+              <Share2 color={colors.dark.text} size={22} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.rightActions}>
+            <View style={styles.viewCount}>
+              <Eye color={colors.dark.textSecondary} size={16} />
+              <Text style={styles.viewCountText}>{post.views_count.formatted}</Text>
+            </View>
+            <TouchableOpacity onPress={handleBookmarkPress} style={styles.actionButton}>
+              <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+                <Bookmark 
+                  color={isBookmarked ? colors.dark.accent : colors.dark.text} 
+                  size={22}
+                  fill={isBookmarked ? colors.dark.accent : 'none'}
+                />
+              </Animated.View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {Object.keys(reactionCounts).length > 0 && (
           <View style={styles.reactionsBar}>
             {Object.entries(reactionCounts).map(([unifiedId, data]) => (
@@ -222,28 +366,6 @@ function PostItem({ post }: { post: Post }) {
             ))}
           </View>
         )}
-        <View style={styles.postActions}>
-          <TouchableOpacity onPress={handleReactionPress} style={styles.actionButton}>
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <Heart 
-                color={colors.dark.text} 
-                size={22} 
-                fill="none"
-              />
-            </Animated.View>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Share2 color={colors.dark.text} size={22} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <MessageCircle color={colors.dark.text} size={22} />
-          </TouchableOpacity>
-          <View style={styles.viewCount}>
-            <Eye color={colors.dark.text} size={18} />
-            <Text style={styles.viewCountText}>{post.views_count.formatted}</Text>
-          </View>
-        </View>
-        <Text style={styles.leaveComment}>Leave a comment</Text>
       </View>
 
       <Modal
@@ -286,63 +408,28 @@ function PostItem({ post }: { post: Post }) {
           onPress={() => setShowReactionPicker(false)}
         >
           <Pressable style={styles.emojiPickerModal} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
             <View style={styles.emojiPickerHeader}>
-              <Text style={styles.emojiPickerTitle}>React to this post</Text>
-              <TouchableOpacity onPress={() => setShowReactionPicker(false)}>
-                <X color={colors.dark.text} size={24} />
-              </TouchableOpacity>
+              <Text style={styles.emojiPickerTitle}>React</Text>
             </View>
             
             <ScrollView style={styles.emojiPickerContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Frequently Used</Text>
-                <View style={styles.emojiGrid}>
-                  {FREQUENTLY_USED_EMOJIS.map((emojiData) => (
-                    <TouchableOpacity
-                      key={emojiData.unified}
-                      style={styles.emojiButton}
-                      onPress={() => handleSelectReaction(emojiData)}
-                    >
-                      <Text style={styles.emojiButtonText}>{emojiData.emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+              <View style={styles.quickReactions}>
+                {FREQUENTLY_USED_EMOJIS.slice(0, 6).map((emojiData) => (
+                  <TouchableOpacity
+                    key={emojiData.unified}
+                    style={styles.quickReactionButton}
+                    onPress={() => handleSelectReaction(emojiData)}
+                  >
+                    <Text style={styles.quickReactionEmoji}>{emojiData.emoji}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Smileys & People</Text>
+                <Text style={styles.emojiSectionTitle}>Smileys</Text>
                 <View style={styles.emojiGrid}>
                   {EMOJI_CATEGORIES.smileys.map((emojiData) => (
-                    <TouchableOpacity
-                      key={emojiData.unified}
-                      style={styles.emojiButton}
-                      onPress={() => handleSelectReaction(emojiData)}
-                    >
-                      <Text style={styles.emojiButtonText}>{emojiData.emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Emotions</Text>
-                <View style={styles.emojiGrid}>
-                  {EMOJI_CATEGORIES.emotions.map((emojiData) => (
-                    <TouchableOpacity
-                      key={emojiData.unified}
-                      style={styles.emojiButton}
-                      onPress={() => handleSelectReaction(emojiData)}
-                    >
-                      <Text style={styles.emojiButtonText}>{emojiData.emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Gestures</Text>
-                <View style={styles.emojiGrid}>
-                  {EMOJI_CATEGORIES.gestures.map((emojiData) => (
                     <TouchableOpacity
                       key={emojiData.unified}
                       style={styles.emojiButton}
@@ -370,9 +457,9 @@ function PostItem({ post }: { post: Post }) {
               </View>
 
               <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Symbols</Text>
+                <Text style={styles.emojiSectionTitle}>Gestures</Text>
                 <View style={styles.emojiGrid}>
-                  {EMOJI_CATEGORIES.symbols.map((emojiData) => (
+                  {EMOJI_CATEGORIES.gestures.map((emojiData) => (
                     <TouchableOpacity
                       key={emojiData.unified}
                       style={styles.emojiButton}
@@ -387,7 +474,7 @@ function PostItem({ post }: { post: Post }) {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -399,6 +486,25 @@ export default function HomeScreen() {
   const { currentUser } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+  
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(logoScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const unreadCount = unreadCountData?.data?.raw || 0;
   const hasUnread = unreadCount > 0;
@@ -418,82 +524,98 @@ export default function HomeScreen() {
     }
   };
 
-
-
   const posts = postsData?.data || [];
   const stories = storiesData?.data || [];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>USER VAULT</Text>
-        <TouchableOpacity 
-          style={styles.notificationButton}
-          onPress={() => router.push('/notifications')}
-        >
-          <Bell color={colors.dark.text} size={24} />
-          {hasUnread && (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView 
-        style={styles.content} 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.dark.text} />
-        }
-      >
-        <View style={styles.storiesSection}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.storiesContent}
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
+          <Animated.Text style={[styles.headerTitle, { transform: [{ scale: logoScale }] }]}>
+            USERVAULT
+          </Animated.Text>
+          <TouchableOpacity 
+            style={styles.notificationButton}
+            onPress={() => router.push('/notifications')}
           >
-            <TouchableOpacity style={styles.storyItem}>
-              <View style={styles.addStoryBorder}>
-                <Image 
-                  source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }} 
-                  style={styles.storyAvatar} 
-                />
-                <View style={styles.addStoryButton}>
-                  <Text style={styles.addStoryText}>+</Text>
-                </View>
+            <Bell color={colors.dark.text} size={24} />
+            {hasUnread && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
               </View>
-              <Text style={styles.storyUsername}>Your Story</Text>
-            </TouchableOpacity>
-            {storiesLoading ? (
-              <ActivityIndicator color={colors.dark.text} style={{ marginLeft: 20 }} />
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              tintColor={colors.dark.accent}
+              progressBackgroundColor={colors.dark.card}
+            />
+          }
+        >
+          <View style={styles.storiesSection}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.storiesContent}
+            >
+              <TouchableOpacity style={styles.storyItem}>
+                <LinearGradient
+                  colors={[colors.dark.card, colors.dark.surface]}
+                  style={styles.addStoryGradient}
+                >
+                  <Image 
+                    source={{ uri: currentUser?.avatar || 'https://i.pravatar.cc/150' }} 
+                    style={styles.addStoryAvatar} 
+                  />
+                  <View style={styles.addStoryButton}>
+                    <Text style={styles.addStoryText}>+</Text>
+                  </View>
+                </LinearGradient>
+                <Text style={styles.storyUsername}>Your Story</Text>
+              </TouchableOpacity>
+              {storiesLoading ? (
+                <View style={styles.storiesLoading}>
+                  <ActivityIndicator color={colors.dark.accent} />
+                </View>
+              ) : (
+                stories.map((story: Story, index: number) => (
+                  <AnimatedStoryItem key={story.story_uuid} story={story} index={index} />
+                ))
+              )}
+            </ScrollView>
+          </View>
+
+          <View style={styles.postsSection}>
+            {postsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.dark.accent} />
+                <Text style={styles.loadingText}>Loading feed...</Text>
+              </View>
+            ) : posts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyEmoji}>📭</Text>
+                <Text style={styles.emptyText}>No posts yet</Text>
+                <Text style={styles.emptySubtext}>Follow people to see their posts</Text>
+              </View>
             ) : (
-              stories.map((story: Story) => (
-                <StoryItem key={story.story_uuid} story={story} />
+              posts.map((post: Post, index: number) => (
+                <AnimatedPostItem key={post.id} post={post} index={index} />
               ))
             )}
-          </ScrollView>
-        </View>
-
-        <View style={styles.postsSection}>
-          {postsLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.dark.text} />
-            </View>
-          ) : posts.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No posts yet</Text>
-            </View>
-          ) : (
-            posts.map((post: Post) => (
-              <PostItem key={post.id} post={post} />
-            ))
-          )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          </View>
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -502,80 +624,87 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.dark.background,
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.dark.border,
+    paddingVertical: 12,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700' as const,
+    fontSize: 26,
+    fontWeight: '800' as const,
     color: colors.dark.text,
-    letterSpacing: 0.5,
+    letterSpacing: 2,
   },
   notificationButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.dark.card,
+    borderRadius: 22,
     position: 'relative',
   },
   notificationBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: '#EF4444',
+    top: 4,
+    right: 4,
+    backgroundColor: '#FF3B30',
     borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.dark.background,
   },
   notificationBadgeText: {
-    color: colors.dark.text,
-    fontSize: 11,
+    color: '#FFF',
+    fontSize: 10,
     fontWeight: '700' as const,
   },
   content: {
     flex: 1,
   },
   storiesSection: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.dark.border,
-    paddingVertical: 12,
+    paddingVertical: 16,
   },
   storiesContent: {
     paddingHorizontal: 16,
-    gap: 12,
+    gap: 14,
+  },
+  storiesLoading: {
+    width: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   storyItem: {
     alignItems: 'center',
-    width: 70,
+    width: 76,
   },
-  storyBorder: {
-    padding: 2,
+  storyGradientBorder: {
+    padding: 3,
     borderRadius: 40,
-    borderWidth: 2,
-    borderColor: colors.dark.accent,
   },
-  storyBorderViewed: {
-    borderColor: colors.dark.border,
-  },
-  addStoryBorder: {
+  storyImageWrapper: {
     padding: 2,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: colors.dark.border,
-    position: 'relative',
+    backgroundColor: colors.dark.background,
+    borderRadius: 35,
   },
   storyAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  addStoryGradient: {
+    padding: 3,
+    borderRadius: 40,
+    position: 'relative',
+  },
+  addStoryAvatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
@@ -587,55 +716,60 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
     backgroundColor: colors.dark.accent,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: colors.dark.background,
   },
   addStoryText: {
-    color: colors.dark.text,
-    fontSize: 16,
+    color: '#FFF',
+    fontSize: 14,
     fontWeight: '700' as const,
-    lineHeight: 18,
+    lineHeight: 16,
   },
   storyUsername: {
-    fontSize: 12,
-    color: colors.dark.text,
-    marginTop: 6,
+    fontSize: 11,
+    color: colors.dark.textSecondary,
+    marginTop: 8,
+    fontWeight: '500' as const,
   },
   postsSection: {
     paddingTop: 8,
   },
   post: {
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.dark.border,
-    paddingBottom: 16,
+    marginBottom: 24,
+    marginHorizontal: 16,
+    backgroundColor: colors.dark.card,
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   postHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    padding: 14,
   },
   postUser: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
+  avatarGlow: {
+    borderRadius: 22,
+    padding: 2,
+  },
   postAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
   },
   usernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   postUsername: {
     fontSize: 15,
@@ -643,26 +777,29 @@ const styles = StyleSheet.create({
     color: colors.dark.text,
   },
   postTimestamp: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.dark.textSecondary,
     marginTop: 2,
+  },
+  moreButton: {
+    padding: 8,
   },
   postContent: {
     fontSize: 15,
     color: colors.dark.text,
-    lineHeight: 21,
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    lineHeight: 22,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
   },
   imageWrapper: {
-    width: width,
-    height: width,
-    backgroundColor: colors.dark.card,
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: colors.dark.surface,
     position: 'relative' as const,
   },
   postImage: {
-    width: width,
-    height: width,
+    width: '100%',
+    height: '100%',
   },
   imageLoadingOverlay: {
     position: 'absolute' as const,
@@ -670,61 +807,41 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  imageErrorOverlay: {
+  videoContainer: {
+    position: 'relative' as const,
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: colors.dark.surface,
+  },
+  videoOverlay: {
     position: 'absolute' as const,
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.dark.card,
+    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-  },
-  imageErrorText: {
-    color: colors.dark.textSecondary,
-    fontSize: 14,
-    fontWeight: '600' as const,
-    marginBottom: 8,
-  },
-  imageErrorUrl: {
-    color: colors.dark.textSecondary,
-    fontSize: 11,
-    textAlign: 'center' as const,
-    opacity: 0.6,
-  },
-  videoContainer: {
-    position: 'relative',
-    width: width,
-    height: width,
-    backgroundColor: colors.dark.card,
-  },
-  videoPlayButton: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -40 }, { translateY: -40 }],
-    zIndex: 2,
   },
   playButtonCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: colors.dark.text,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
   fullscreenVideoContainer: {
     flex: 1,
-    backgroundColor: colors.dark.background,
-    justifyContent: 'center' as 'center',
-    alignItems: 'center' as 'center',
+    backgroundColor: '#000',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
   },
   fullscreenVideo: {
     width: '100%',
@@ -732,23 +849,31 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute' as const,
-    top: 50,
+    top: 60,
     right: 20,
     zIndex: 10,
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   postFooter: {
-    paddingHorizontal: 16,
-    marginTop: 12,
-    gap: 8,
+    padding: 14,
+    gap: 12,
   },
   postActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  leftActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
@@ -760,34 +885,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginLeft: 'auto' as 'auto',
   },
   viewCountText: {
-    fontSize: 14,
-    color: colors.dark.text,
-    fontWeight: '500' as const,
-  },
-  leaveComment: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.dark.textSecondary,
+    fontWeight: '500' as const,
   },
   reactionsBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    flexWrap: 'wrap',
   },
   reactionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.dark.card,
+    backgroundColor: colors.dark.surface,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
     gap: 4,
   },
   reactionEmoji: {
-    fontSize: 16,
+    fontSize: 14,
   },
   reactionCount: {
     fontSize: 12,
@@ -796,29 +916,52 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
   },
   emojiPickerModal: {
     backgroundColor: colors.dark.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    paddingBottom: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '70%',
+    paddingBottom: 40,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.dark.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
   emojiPickerHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  emojiPickerTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: colors.dark.text,
+  },
+  quickReactions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    justifyContent: 'space-around',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.dark.border,
   },
-  emojiPickerTitle: {
-    fontSize: 18,
-    fontWeight: '600' as const,
-    color: colors.dark.text,
+  quickReactionButton: {
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.dark.surface,
+    borderRadius: 25,
+  },
+  quickReactionEmoji: {
+    fontSize: 28,
   },
   emojiPickerContent: {
     paddingHorizontal: 20,
@@ -827,11 +970,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   emojiSectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: colors.dark.textSecondary,
     marginBottom: 12,
     textTransform: 'uppercase' as const,
+    letterSpacing: 1,
   },
   emojiGrid: {
     flexDirection: 'row',
@@ -839,26 +983,41 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emojiButton: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: colors.dark.background,
+    borderRadius: 12,
+    backgroundColor: colors.dark.surface,
   },
   emojiButtonText: {
-    fontSize: 32,
+    fontSize: 26,
   },
   loadingContainer: {
-    padding: 40,
+    padding: 60,
     alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.dark.textSecondary,
   },
   emptyContainer: {
-    padding: 40,
+    padding: 60,
     alignItems: 'center',
   },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600' as const,
+    color: colors.dark.text,
+  },
+  emptySubtext: {
+    fontSize: 14,
     color: colors.dark.textSecondary,
+    marginTop: 8,
   },
 });

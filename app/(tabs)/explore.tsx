@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -15,8 +15,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Heart, Users, BadgeCheck, MessageCircle, Share2, MoreHorizontal, Eye, X, Play } from 'lucide-react-native';
+import { Search, Heart, Users, BadgeCheck, MessageCircle, Share2, MoreHorizontal, Eye, X, Play, TrendingUp, Sparkles } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import colors from '@/constants/colors';
 import { useExplorePosts, useSearchPeople, useFollowUser, useLikePost } from '@/hooks/useApi';
@@ -25,59 +26,31 @@ import type { Post, User } from '@/types';
 import { FREQUENTLY_USED_EMOJIS, EMOJI_CATEGORIES, getEmojiByUnified, type Emoji } from '@/constants/emojis';
 
 const { width } = Dimensions.get('window');
+const GRID_GAP = 2;
+const GRID_ITEM_SIZE = (width - GRID_GAP * 2) / 3;
 
-function PostItem({ post }: { post: Post }) {
-  const [showReactionPicker, setShowReactionPicker] = useState<boolean>(false);
-  const [showFullscreenVideo, setShowFullscreenVideo] = useState<boolean>(false);
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const fullscreenVideoRef = useRef<Video>(null);
-  const likeMutation = useLikePost();
+function AnimatedGridItem({ post, index }: { post: Post; index: number }) {
   const router = useRouter();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
-  const user = post.relations.user;
-  const username = user.username || 'unknown';
-  const displayName = user.first_name && user.last_name 
-    ? `${user.first_name} ${user.last_name}` 
-    : user.first_name || user.last_name || username;
-  let avatar = user.avatar_url || `https://i.pravatar.cc/150?u=${post.id}`;
-  if (avatar && !avatar.startsWith('http://') && !avatar.startsWith('https://')) {
-    avatar = `https://uservault.net${avatar.startsWith('/') ? '' : '/'}${avatar}`;
-  }
-
-  const reactions = post.relations.reactions || [];
-  
-  const reactionCounts = reactions.reduce((acc: Record<string, { emoji: string; count: number }>, reaction: any, index: number) => {
-    const unifiedId = reaction.unified_id || `fallback-${index}`;
-    const emojiData = getEmojiByUnified(unifiedId);
-    const emojiChar = emojiData?.emoji || '❤️';
-    
-    if (!acc[unifiedId]) {
-      acc[unifiedId] = { emoji: emojiChar, count: 0 };
-    }
-    acc[unifiedId].count += 1;
-    return acc;
-  }, {} as Record<string, { emoji: string; count: number }>);
-
-  const handleReactionPress = () => {
-    setShowReactionPicker(true);
-  };
-
-  const handleSelectReaction = (emojiData: Emoji) => {
-    setShowReactionPicker(false);
-    likeMutation.mutate({ postId: post.id, unifiedId: emojiData.unified });
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 1.2,
-        duration: 100,
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        delay: index * 50,
         useNativeDriver: true,
       }),
-      Animated.timing(scaleAnim, {
+      Animated.spring(scaleAnim, {
         toValue: 1,
-        duration: 100,
+        friction: 8,
+        tension: 40,
+        delay: index * 50,
         useNativeDriver: true,
       }),
     ]).start();
-  };
+  }, []);
 
   const postMedia = post.relations.media && post.relations.media.length > 0 ? post.relations.media[0] : null;
   const mediaType = postMedia?.type?.toUpperCase();
@@ -91,272 +64,66 @@ function PostItem({ post }: { post: Post }) {
   
   let mediaUrl = normalizeUrl(postMedia?.source_url);
   let thumbnailUrl = normalizeUrl(postMedia?.thumbnail_url);
-  
   const postImage = isVideo ? (thumbnailUrl || mediaUrl) : mediaUrl;
-  const videoUrl = isVideo ? mediaUrl : null;
-  
-  console.log('[Explore] Post:', post.id, 'mediaType:', mediaType, 'isVideo:', isVideo);
-  console.log('[Explore] Post:', post.id, 'mediaUrl:', mediaUrl);
-  console.log('[Explore] Post:', post.id, 'thumbnailUrl:', thumbnailUrl);
-  console.log('[Explore] Post:', post.id, 'finalImage:', postImage, 'finalVideo:', videoUrl);
 
-  const handleVideoPress = React.useCallback(() => {
-    setShowFullscreenVideo(true);
-  }, []);
-
-  const handleCloseFullscreen = React.useCallback(async () => {
-    if (fullscreenVideoRef.current) {
-      await fullscreenVideoRef.current.pauseAsync();
-    }
-    setShowFullscreenVideo(false);
-  }, []);
+  if (!postImage) return null;
 
   return (
-    <View style={styles.post}>
-      <View style={styles.postHeader}>
-        <TouchableOpacity style={styles.postUser} onPress={() => {
-          console.log('[Explore] Navigate to user profile:', user.username || user.id);
-          router.push(`/user/${user.username || user.id}`);
-        }}>
-          <Image 
-            source={{ uri: avatar }} 
-            style={styles.postAvatar} 
-          />
-          <View>
-            <View style={styles.usernameRow}>
-              <Text style={styles.postUsername}>{displayName}</Text>
-              {user.verified && (
-                <BadgeCheck color="#1DA1F2" size={16} fill="#1DA1F2" />
-              )}
-            </View>
-            <Text style={styles.postTimestamp}>{post.date.time_ago}</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity>
-          <MoreHorizontal color={colors.dark.text} size={20} />
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.postContent}>{post.content}</Text>
-
-      {postMedia && isVideo && videoUrl ? (
-        <TouchableOpacity 
-          style={styles.videoContainer}
-          onPress={handleVideoPress}
-          activeOpacity={0.95}
-        >
-          <Image
-            source={{ uri: thumbnailUrl || videoUrl }}
-            style={styles.postImage}
-            resizeMode="cover"
-          />
-          <View style={styles.videoPlayButton}>
-            <View style={styles.playButtonCircle}>
-              <Play color={colors.dark.text} size={32} fill={colors.dark.text} />
-            </View>
-          </View>
-        </TouchableOpacity>
-      ) : postImage ? (
-        <Image 
-          source={{ uri: postImage }} 
-          style={styles.postImage}
-          resizeMode="cover"
-          onError={(error) => {
-            console.error('[Explore] Image load error for post', post.id, ':', error.nativeEvent.error);
-            console.error('[Explore] Failed image URL:', postImage);
-          }}
-          onLoad={() => {
-            console.log('[Explore] Image loaded successfully for post', post.id);
-          }}
-        />
-      ) : null}
-
-      <View style={styles.postFooter}>
-        {Object.keys(reactionCounts).length > 0 && (
-          <View style={styles.reactionsBar}>
-            {Object.entries(reactionCounts).map(([unifiedId, data]) => (
-              <View key={unifiedId} style={styles.reactionBadge}>
-                <Text style={styles.reactionEmoji}>{data.emoji}</Text>
-                <Text style={styles.reactionCount}>{data.count}</Text>
-              </View>
-            ))}
+    <Animated.View style={[
+      styles.gridItem,
+      { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }
+    ]}>
+      <TouchableOpacity 
+        style={styles.gridItemTouchable}
+        activeOpacity={0.9}
+        onPress={() => router.push(`/user/${post.relations.user.username || post.relations.user.id}`)}
+      >
+        <Image source={{ uri: postImage }} style={styles.gridImage} />
+        {isVideo && (
+          <View style={styles.videoIndicator}>
+            <Play color="#FFF" size={16} fill="#FFF" />
           </View>
         )}
-        <View style={styles.postActions}>
-          <TouchableOpacity onPress={handleReactionPress} style={styles.actionButton}>
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <Heart 
-                color={colors.dark.text} 
-                size={22} 
-                fill="none"
-              />
-            </Animated.View>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Share2 color={colors.dark.text} size={22} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <MessageCircle color={colors.dark.text} size={22} />
-          </TouchableOpacity>
-          <View style={styles.viewCount}>
-            <Eye color={colors.dark.text} size={18} />
-            <Text style={styles.viewCountText}>{post.views_count.formatted}</Text>
-          </View>
-        </View>
-        <Text style={styles.leaveComment}>Leave a comment</Text>
-      </View>
-
-      <Modal
-        visible={showFullscreenVideo}
-        transparent={false}
-        animationType="fade"
-        onRequestClose={handleCloseFullscreen}
-        statusBarTranslucent
-      >
-        <View style={styles.fullscreenVideoContainer}>
-          <TouchableOpacity 
-            style={styles.closeButton}
-            onPress={handleCloseFullscreen}
-          >
-            <X color={colors.dark.text} size={28} />
-          </TouchableOpacity>
-          {videoUrl && (
-            <Video
-              ref={fullscreenVideoRef}
-              source={{ uri: videoUrl }}
-              style={styles.fullscreenVideo}
-              resizeMode={ResizeMode.CONTAIN}
-              isLooping
-              shouldPlay={true}
-              useNativeControls={true}
-              onError={(error) => {
-                console.error('[Explore] Fullscreen video error:', error);
-              }}
-            />
-          )}
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showReactionPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowReactionPicker(false)}
-      >
-        <Pressable 
-          style={styles.modalOverlay} 
-          onPress={() => setShowReactionPicker(false)}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.6)']}
+          style={styles.gridOverlay}
         >
-          <Pressable style={styles.emojiPickerModal} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.emojiPickerHeader}>
-              <Text style={styles.emojiPickerTitle}>React to this post</Text>
-              <TouchableOpacity onPress={() => setShowReactionPicker(false)}>
-                <X color={colors.dark.text} size={24} />
-              </TouchableOpacity>
+          <View style={styles.gridStats}>
+            <View style={styles.gridStat}>
+              <Heart color="#FFF" size={12} fill="#FFF" />
+              <Text style={styles.gridStatText}>{post.views_count.formatted}</Text>
             </View>
-            
-            <ScrollView style={styles.emojiPickerContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Frequently Used</Text>
-                <View style={styles.emojiGrid}>
-                  {FREQUENTLY_USED_EMOJIS.map((emojiData) => (
-                    <TouchableOpacity
-                      key={emojiData.unified}
-                      style={styles.emojiButton}
-                      onPress={() => handleSelectReaction(emojiData)}
-                    >
-                      <Text style={styles.emojiButtonText}>{emojiData.emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Smileys & People</Text>
-                <View style={styles.emojiGrid}>
-                  {EMOJI_CATEGORIES.smileys.map((emojiData) => (
-                    <TouchableOpacity
-                      key={emojiData.unified}
-                      style={styles.emojiButton}
-                      onPress={() => handleSelectReaction(emojiData)}
-                    >
-                      <Text style={styles.emojiButtonText}>{emojiData.emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Emotions</Text>
-                <View style={styles.emojiGrid}>
-                  {EMOJI_CATEGORIES.emotions.map((emojiData) => (
-                    <TouchableOpacity
-                      key={emojiData.unified}
-                      style={styles.emojiButton}
-                      onPress={() => handleSelectReaction(emojiData)}
-                    >
-                      <Text style={styles.emojiButtonText}>{emojiData.emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Gestures</Text>
-                <View style={styles.emojiGrid}>
-                  {EMOJI_CATEGORIES.gestures.map((emojiData) => (
-                    <TouchableOpacity
-                      key={emojiData.unified}
-                      style={styles.emojiButton}
-                      onPress={() => handleSelectReaction(emojiData)}
-                    >
-                      <Text style={styles.emojiButtonText}>{emojiData.emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Hearts</Text>
-                <View style={styles.emojiGrid}>
-                  {EMOJI_CATEGORIES.hearts.map((emojiData) => (
-                    <TouchableOpacity
-                      key={emojiData.unified}
-                      style={styles.emojiButton}
-                      onPress={() => handleSelectReaction(emojiData)}
-                    >
-                      <Text style={styles.emojiButtonText}>{emojiData.emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.emojiSection}>
-                <Text style={styles.emojiSectionTitle}>Symbols</Text>
-                <View style={styles.emojiGrid}>
-                  {EMOJI_CATEGORIES.symbols.map((emojiData) => (
-                    <TouchableOpacity
-                      key={emojiData.unified}
-                      style={styles.emojiButton}
-                      onPress={() => handleSelectReaction(emojiData)}
-                    >
-                      <Text style={styles.emojiButtonText}>{emojiData.emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
-function UserItem({ user }: { user: User }) {
+function AnimatedUserItem({ user, index }: { user: User; index: number }) {
   const router = useRouter();
   const followMutation = useFollowUser();
   const [isFollowing, setIsFollowing] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        delay: index * 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        delay: index * 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   let avatar = user.avatar || `https://i.pravatar.cc/150?u=${user.id}`;
   if (avatar && !avatar.startsWith('http://') && !avatar.startsWith('https://')) {
@@ -364,39 +131,51 @@ function UserItem({ user }: { user: User }) {
   }
 
   const handleFollow = async () => {
-    console.log('[Explore] Follow button pressed for user:', user.id);
-    console.log('[Explore] User ID type:', typeof user.id);
-    console.log('[Explore] Current isFollowing state:', isFollowing);
+    if (!user.id || typeof user.id !== 'number') return;
     
-    if (!user.id || typeof user.id !== 'number') {
-      console.error('[Explore] Invalid user ID:', user.id);
-      return;
-    }
-    
+    Animated.sequence([
+      Animated.timing(buttonScale, {
+        toValue: 0.9,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     const previousState = isFollowing;
     try {
       setIsFollowing(!isFollowing);
       await followMutation.mutateAsync(user.id);
-      console.log('[Explore] Follow mutation successful');
     } catch (error) {
-      console.error('[Explore] Follow mutation failed:', error);
       setIsFollowing(previousState);
     }
   };
 
   return (
-    <View style={styles.userItem}>
+    <Animated.View style={[
+      styles.userItem,
+      { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }
+    ]}>
       <TouchableOpacity 
         style={styles.userInfo}
         onPress={() => router.push(`/user/${user.username || user.id}`)}
+        activeOpacity={0.7}
       >
-        <Image source={{ uri: avatar }} style={styles.userAvatar} />
+        <View style={styles.userAvatarContainer}>
+          <Image source={{ uri: avatar }} style={styles.userAvatar} />
+          {user.verified && (
+            <View style={styles.verifiedBadgeSmall}>
+              <BadgeCheck color="#FFF" size={12} fill={colors.dark.accent} />
+            </View>
+          )}
+        </View>
         <View style={styles.userDetails}>
           <View style={styles.userNameRow}>
             <Text style={styles.userName}>{user.name}</Text>
-            {user.verified && (
-              <BadgeCheck color="#1DA1F2" size={16} fill="#1DA1F2" />
-            )}
           </View>
           <Text style={styles.userUsername}>@{user.username}</Text>
           {user.bio && (
@@ -404,30 +183,68 @@ function UserItem({ user }: { user: User }) {
           )}
         </View>
       </TouchableOpacity>
-      <TouchableOpacity 
-        style={[styles.followButton, isFollowing && styles.followingButton]}
-        onPress={handleFollow}
-      >
-        <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
-          {isFollowing ? 'Following' : 'Follow'}
-        </Text>
-      </TouchableOpacity>
-    </View>
+      <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+        <TouchableOpacity 
+          style={[styles.followButton, isFollowing && styles.followingButton]}
+          onPress={handleFollow}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
+            {isFollowing ? 'Following' : 'Follow'}
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
 export default function ExploreScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   
   const { data: postsData, isLoading: postsLoading, refetch: refetchPosts } = useExplorePosts();
   const { data: peopleData, isLoading: peopleLoading } = useSearchPeople(searchQuery);
+
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const searchBarScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(headerOpacity, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const handleSearchFocus = () => {
+    setIsSearchFocused(true);
+    Animated.spring(searchBarScale, {
+      toValue: 1.02,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleSearchBlur = () => {
+    setIsSearchFocused(false);
+    Animated.spring(searchBarScale, {
+      toValue: 1,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const posts = postsData?.data || [];
   const people = peopleData?.data || [];
 
   const isSearching = searchQuery.length >= 1;
   const isLoading = isSearching ? peopleLoading : postsLoading;
+
+  const postsWithMedia = posts.filter((post: Post) => {
+    const postMedia = post.relations.media && post.relations.media.length > 0 ? post.relations.media[0] : null;
+    return postMedia?.source_url || postMedia?.thumbnail_url;
+  });
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -441,62 +258,102 @@ export default function ExploreScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Explore</Text>
-      </View>
-
-      <View style={styles.searchBar}>
-        <Search color={colors.dark.textSecondary} size={20} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search people..."
-          placeholderTextColor={colors.dark.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
-
-      <ScrollView 
-        style={styles.content} 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.dark.text} />
-        }
-      >
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.dark.text} />
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerTitleRow}>
+              <Sparkles color={colors.dark.accent} size={24} />
+              <Text style={styles.headerTitle}>Discover</Text>
+            </View>
           </View>
-        ) : isSearching && people.length > 0 ? (
-          <View style={styles.peopleList}>
-            {people.map((user) => (
-              <UserItem key={user.id} user={user} />
-            ))}
-          </View>
-        ) : isSearching && people.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Users color={colors.dark.textSecondary} size={60} />
-            <Text style={styles.emptyText}>No people found</Text>
-            <Text style={styles.emptySubtext}>Try a different search term</Text>
-          </View>
-        ) : (
-          <View style={styles.postsSection}>
-            {posts.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No posts found</Text>
-              </View>
-            ) : (
-              posts.map((post: Post) => (
-                <PostItem key={post.id} post={post} />
-              ))
+          
+          <Animated.View style={[
+            styles.searchBar,
+            isSearchFocused && styles.searchBarFocused,
+            { transform: [{ scale: searchBarScale }] }
+          ]}>
+            <Search color={isSearchFocused ? colors.dark.accent : colors.dark.textSecondary} size={20} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search people..."
+              placeholderTextColor={colors.dark.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+              onFocus={handleSearchFocus}
+              onBlur={handleSearchBlur}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <X color={colors.dark.textSecondary} size={18} />
+              </TouchableOpacity>
             )}
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+          </Animated.View>
+        </Animated.View>
+
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              tintColor={colors.dark.accent}
+            />
+          }
+        >
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.dark.accent} />
+              <Text style={styles.loadingText}>
+                {isSearching ? 'Searching...' : 'Loading content...'}
+              </Text>
+            </View>
+          ) : isSearching && people.length > 0 ? (
+            <View style={styles.peopleList}>
+              <View style={styles.sectionHeader}>
+                <Users color={colors.dark.textSecondary} size={18} />
+                <Text style={styles.sectionTitle}>People</Text>
+                <Text style={styles.sectionCount}>{people.length} found</Text>
+              </View>
+              {people.map((user, index) => (
+                <AnimatedUserItem key={user.id} user={user} index={index} />
+              ))}
+            </View>
+          ) : isSearching && people.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconContainer}>
+                <Users color={colors.dark.textSecondary} size={48} />
+              </View>
+              <Text style={styles.emptyText}>No results found</Text>
+              <Text style={styles.emptySubtext}>Try a different search term</Text>
+            </View>
+          ) : (
+            <View style={styles.gridSection}>
+              <View style={styles.trendingHeader}>
+                <TrendingUp color={colors.dark.accent} size={18} />
+                <Text style={styles.trendingTitle}>Trending</Text>
+              </View>
+              {postsWithMedia.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No content yet</Text>
+                  <Text style={styles.emptySubtext}>Check back later for trending posts</Text>
+                </View>
+              ) : (
+                <View style={styles.gridContainer}>
+                  {postsWithMedia.map((post: Post, index: number) => (
+                    <AnimatedGridItem key={post.id} post={post} index={index} />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -505,27 +362,41 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.dark.background,
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.dark.border,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  headerTop: {
+    marginBottom: 16,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '700' as const,
+    fontWeight: '800' as const,
     color: colors.dark.text,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.dark.card,
-    marginHorizontal: 16,
-    marginVertical: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 16,
     gap: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  searchBarFocused: {
+    borderColor: colors.dark.accent,
+    backgroundColor: colors.dark.surface,
   },
   searchInput: {
     flex: 1,
@@ -535,225 +406,114 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  postsSection: {
-    paddingTop: 8,
-  },
-  post: {
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.dark.border,
-    paddingBottom: 16,
-  },
-  postHeader: {
+  sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingVertical: 12,
   },
-  postUser: {
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: colors.dark.text,
+    flex: 1,
+  },
+  sectionCount: {
+    fontSize: 13,
+    color: colors.dark.textSecondary,
+  },
+  gridSection: {
+    flex: 1,
+  },
+  trendingHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  postAvatar: {
-    width: 40,
+  trendingTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: colors.dark.text,
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: GRID_GAP,
+  },
+  gridItem: {
+    width: GRID_ITEM_SIZE,
+    height: GRID_ITEM_SIZE,
+  },
+  gridItemTouchable: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  gridImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.dark.card,
+  },
+  videoIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 4,
+    borderRadius: 4,
+  },
+  gridOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     height: 40,
-    borderRadius: 20,
+    justifyContent: 'flex-end',
+    padding: 6,
   },
-  usernameRow: {
+  gridStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  gridStat: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  postUsername: {
-    fontSize: 15,
+  gridStatText: {
+    color: '#FFF',
+    fontSize: 11,
     fontWeight: '600' as const,
-    color: colors.dark.text,
   },
-  postTimestamp: {
-    fontSize: 13,
-    color: colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  postContent: {
-    fontSize: 15,
-    color: colors.dark.text,
-    lineHeight: 21,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  postImage: {
-    width: width,
-    height: width,
-    backgroundColor: colors.dark.card,
-  },
-  videoContainer: {
-    position: 'relative' as 'relative',
-    width: width,
-    height: width,
-    backgroundColor: colors.dark.card,
-  },
-  videoPlayButton: {
-    position: 'absolute' as 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -40 }, { translateY: -40 }],
-    zIndex: 2,
-  },
-  playButtonCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    alignItems: 'center' as 'center',
-    justifyContent: 'center' as 'center',
-    borderWidth: 3,
-    borderColor: colors.dark.text,
-  },
-  fullscreenVideoContainer: {
-    flex: 1,
-    backgroundColor: colors.dark.background,
-    justifyContent: 'center' as 'center',
-    alignItems: 'center' as 'center',
-  },
-  fullscreenVideo: {
-    width: '100%',
-    height: '100%',
-  },
-  closeButton: {
-    position: 'absolute' as 'absolute',
-    top: 50,
-    right: 20,
-    zIndex: 10,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    alignItems: 'center' as 'center',
-    justifyContent: 'center' as 'center',
-  },
-
-  postFooter: {
-    paddingHorizontal: 16,
-    marginTop: 12,
-    gap: 8,
-  },
-  postActions: {
-    flexDirection: 'row',
+  loadingContainer: {
+    padding: 60,
     alignItems: 'center',
     gap: 16,
   },
-  actionButton: {
-    padding: 4,
-  },
-  viewCount: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginLeft: 'auto' as 'auto',
-  },
-  viewCountText: {
-    fontSize: 14,
-    color: colors.dark.text,
-    fontWeight: '500' as const,
-  },
-  leaveComment: {
+  loadingText: {
     fontSize: 14,
     color: colors.dark.textSecondary,
-  },
-  reactionsBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.dark.card,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
-    gap: 4,
-  },
-  reactionEmoji: {
-    fontSize: 16,
-  },
-  reactionCount: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: colors.dark.text,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
-  },
-  emojiPickerModal: {
-    backgroundColor: colors.dark.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    paddingBottom: 20,
-  },
-  emojiPickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.dark.border,
-  },
-  emojiPickerTitle: {
-    fontSize: 18,
-    fontWeight: '600' as const,
-    color: colors.dark.text,
-  },
-  emojiPickerContent: {
-    paddingHorizontal: 20,
-  },
-  emojiSection: {
-    marginTop: 20,
-  },
-  emojiSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: colors.dark.textSecondary,
-    marginBottom: 12,
-    textTransform: 'uppercase' as const,
-  },
-  emojiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  emojiButton: {
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: colors.dark.background,
-  },
-  emojiButtonText: {
-    fontSize: 32,
-  },
-  loadingContainer: {
-    padding: 40,
-    alignItems: 'center',
   },
   emptyContainer: {
-    width: '100%',
-    padding: 40,
+    padding: 60,
     alignItems: 'center',
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.dark.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyText: {
     fontSize: 18,
     fontWeight: '600' as const,
     color: colors.dark.text,
-    marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
@@ -768,9 +528,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.dark.border,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginVertical: 4,
+    backgroundColor: colors.dark.card,
+    borderRadius: 16,
   },
   userInfo: {
     flexDirection: 'row',
@@ -778,11 +540,22 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
-  userAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  userAvatarContainer: {
+    position: 'relative',
     marginRight: 12,
+  },
+  userAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  verifiedBadgeSmall: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: colors.dark.background,
+    borderRadius: 10,
+    padding: 2,
   },
   userDetails: {
     flex: 1,
@@ -811,18 +584,18 @@ const styles = StyleSheet.create({
   followButton: {
     backgroundColor: colors.dark.accent,
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
   },
   followingButton: {
     backgroundColor: 'transparent',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.dark.border,
   },
   followButtonText: {
     fontSize: 14,
     fontWeight: '600' as const,
-    color: colors.dark.text,
+    color: '#FFF',
   },
   followingButtonText: {
     color: colors.dark.textSecondary,
