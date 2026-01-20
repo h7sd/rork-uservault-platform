@@ -37,6 +37,12 @@ export default function StoryViewerScreen() {
   const currentFrame = frames[currentFrameIndex] as StoryFrame | undefined;
   const user = story?.relations?.user;
 
+  const normalizeUrl = (url: string | null | undefined): string | null => {
+    if (!url || typeof url !== 'string' || url.length === 0) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `https://uservault.net${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -132,7 +138,8 @@ export default function StoryViewerScreen() {
     );
   }
 
-  const mediaUrl = currentFrame?.media?.url || currentFrame?.media?.thumbnail_url;
+  const rawMediaUrl = currentFrame?.media?.url || currentFrame?.media?.thumbnail_url;
+  const mediaUrl = normalizeUrl(rawMediaUrl);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -159,7 +166,7 @@ export default function StoryViewerScreen() {
       <View style={styles.header}>
         <View style={styles.userInfo}>
           <Image
-            source={{ uri: user?.avatar_url || 'https://i.pravatar.cc/150' }}
+            source={{ uri: normalizeUrl(user?.avatar_url) || 'https://i.pravatar.cc/150' }}
             style={styles.avatar}
           />
           <View>

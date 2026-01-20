@@ -569,7 +569,7 @@ export default function HomeScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.storiesContent}
             >
-              <TouchableOpacity style={styles.storyItem}>
+              <TouchableOpacity style={styles.storyItem} onPress={() => router.push('/create-story')}>
                 <LinearGradient
                   colors={[colors.dark.card, colors.dark.surface]}
                   style={styles.addStoryGradient}
