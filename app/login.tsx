@@ -17,7 +17,7 @@ import {
   Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Check, ArrowRight, Eye, EyeOff, Sparkles, ExternalLink } from 'lucide-react-native';
+import { Check, Eye, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -318,7 +318,7 @@ function WelcomeOverlay({ visible, username, onComplete }: WelcomeOverlayProps) 
   return (
     <Animated.View style={[styles.welcomeOverlay, { opacity: fadeAnim }]}>
       <LinearGradient
-        colors={['#0a0a0f', '#0d1117', '#0a0a0f']}
+        colors={['#1a0a2e', '#0d0619', '#1a0a2e']}
         style={StyleSheet.absoluteFill}
       />
       <Animated.View style={[styles.welcomeContent, { transform: [{ scale: scaleAnim }] }]}>
@@ -557,15 +557,15 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0a0a0f', '#0d1117', '#0a0f14', '#0a0a0f']}
+        colors={['#1a0a2e', '#16082a', '#0d0619', '#1a0a2e']}
         locations={[0, 0.3, 0.7, 1]}
         style={styles.gradientBackground}
       />
 
-      <FloatingOrb delay={0} startX={-50} startY={100} size={200} color="rgba(0, 212, 255, 0.15)" />
-      <FloatingOrb delay={500} startX={SCREEN_WIDTH - 100} startY={200} size={180} color="rgba(0, 255, 136, 0.12)" />
-      <FloatingOrb delay={1000} startX={50} startY={SCREEN_HEIGHT - 300} size={150} color="rgba(99, 102, 241, 0.15)" />
-      <FloatingOrb delay={1500} startX={SCREEN_WIDTH - 150} startY={SCREEN_HEIGHT - 400} size={120} color="rgba(0, 212, 255, 0.1)" />
+      <FloatingOrb delay={0} startX={-50} startY={100} size={200} color="rgba(139, 92, 246, 0.2)" />
+      <FloatingOrb delay={500} startX={SCREEN_WIDTH - 100} startY={200} size={180} color="rgba(59, 130, 246, 0.18)" />
+      <FloatingOrb delay={1000} startX={50} startY={SCREEN_HEIGHT - 300} size={150} color="rgba(168, 85, 247, 0.2)" />
+      <FloatingOrb delay={1500} startX={SCREEN_WIDTH - 150} startY={SCREEN_HEIGHT - 400} size={120} color="rgba(99, 102, 241, 0.15)" />
 
       {[...Array(12)].map((_, i) => (
         <Particle key={i} delay={i * 600} />
@@ -590,7 +590,7 @@ export default function LoginScreen() {
               ]}
             >
               <LinearGradient
-                colors={['#00d4ff', '#00ff88', '#00d4ff']}
+                colors={['#8b5cf6', '#6366f1', '#3b82f6']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.logoGradient}
@@ -626,10 +626,9 @@ export default function LoginScreen() {
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)']}
+                colors={['rgba(139, 92, 246, 0.15)', 'rgba(99, 102, 241, 0.08)']}
                 style={styles.createAccountGradient}
               >
-                <Sparkles size={18} color="#00d4ff" style={styles.sparkleIcon} />
                 <Text style={styles.createAccountText}>Create new account</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -739,18 +738,15 @@ export default function LoginScreen() {
               >
                 <Animated.View style={[styles.buttonGlow, { opacity: glowOpacity }]} />
                 <LinearGradient
-                  colors={['#00d4ff', '#00b4d8', '#0096c7']}
+                  colors={['#8b5cf6', '#7c3aed', '#6366f1']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.loginButtonGradient}
                 >
                   {isLoading ? (
-                    <ActivityIndicator color="#000" />
+                    <ActivityIndicator color="#fff" />
                   ) : (
-                    <>
-                      <Text style={styles.loginButtonText}>Sign In</Text>
-                      <ArrowRight size={20} color="#000" strokeWidth={2.5} />
-                    </>
+                    <Text style={styles.loginButtonText}>Sign In</Text>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
@@ -799,12 +795,9 @@ export default function LoginScreen() {
             <BlurView intensity={40} tint="dark" style={styles.modalBlur}>
               <View style={styles.modalContent}>
                 <LinearGradient
-                  colors={['rgba(0, 212, 255, 0.1)', 'transparent']}
+                  colors={['rgba(139, 92, 246, 0.15)', 'transparent']}
                   style={styles.modalHeaderGlow}
                 />
-                <View style={styles.modalIconContainer}>
-                  <Sparkles size={32} color="#00d4ff" />
-                </View>
                 <Text style={styles.modalTitle}>Create Account</Text>
                 <Text style={styles.modalText}>
                   To create an account, please visit our website and complete registration:
@@ -843,13 +836,12 @@ export default function LoginScreen() {
                 <Text style={styles.modalTeamSignature}>— Uservault team</Text>
                 <TouchableOpacity style={styles.modalButton} onPress={handleOpenWebsite}>
                   <LinearGradient
-                    colors={['#00d4ff', '#00b4d8']}
+                    colors={['#8b5cf6', '#6366f1']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.modalButtonGradient}
                   >
                     <Text style={styles.modalButtonText}>Open Website</Text>
-                    <ExternalLink size={18} color="#000" />
                   </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -863,12 +855,9 @@ export default function LoginScreen() {
           ) : (
             <View style={styles.modalContentAndroid}>
               <LinearGradient
-                colors={['rgba(0, 212, 255, 0.1)', 'transparent']}
+                colors={['rgba(139, 92, 246, 0.15)', 'transparent']}
                 style={styles.modalHeaderGlow}
               />
-              <View style={styles.modalIconContainer}>
-                <Sparkles size={32} color="#00d4ff" />
-              </View>
               <Text style={styles.modalTitle}>Create Account</Text>
               <Text style={styles.modalText}>
                 To create an account, please visit our website and complete registration:
@@ -905,13 +894,12 @@ export default function LoginScreen() {
               <Text style={styles.modalTeamSignature}>— Uservault team</Text>
               <TouchableOpacity style={styles.modalButton} onPress={handleOpenWebsite}>
                 <LinearGradient
-                  colors={['#00d4ff', '#00b4d8']}
+                  colors={['#8b5cf6', '#6366f1']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.modalButtonGradient}
                 >
                   <Text style={styles.modalButtonText}>Open Website</Text>
-                  <ExternalLink size={18} color="#000" />
                 </LinearGradient>
               </TouchableOpacity>
               <TouchableOpacity
@@ -931,14 +919,14 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0f',
+    backgroundColor: '#1a0a2e',
   },
   gradientBackground: {
     ...StyleSheet.absoluteFillObject,
   },
   floatingOrb: {
     position: 'absolute',
-    shadowColor: '#00d4ff',
+    shadowColor: '#8b5cf6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 40,
@@ -948,8 +936,8 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#00d4ff',
-    shadowColor: '#00d4ff',
+    backgroundColor: '#8b5cf6',
+    shadowColor: '#8b5cf6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 6,
@@ -990,7 +978,7 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
-    backgroundColor: 'rgba(0, 212, 255, 0.2)',
+    backgroundColor: 'rgba(139, 92, 246, 0.25)',
     top: -20,
     left: -20,
     zIndex: -1,
@@ -1020,7 +1008,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 255, 0.2)',
+    borderColor: 'rgba(139, 92, 246, 0.3)',
   },
   createAccountGradient: {
     flexDirection: 'row',
@@ -1029,9 +1017,7 @@ const styles = StyleSheet.create({
     height: 56,
     gap: 10,
   },
-  sparkleIcon: {
-    marginRight: 4,
-  },
+  
   createAccountText: {
     fontSize: 16,
     fontWeight: '600' as const,
@@ -1078,9 +1064,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inputWrapperFocused: {
-    borderColor: 'rgba(0, 212, 255, 0.5)',
-    backgroundColor: 'rgba(0, 212, 255, 0.05)',
-    shadowColor: '#00d4ff',
+    borderColor: 'rgba(139, 92, 246, 0.5)',
+    backgroundColor: 'rgba(139, 92, 246, 0.08)',
+    shadowColor: '#8b5cf6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -1111,7 +1097,7 @@ const styles = StyleSheet.create({
     left: -10,
     right: -10,
     bottom: -10,
-    backgroundColor: 'rgba(0, 212, 255, 0.3)',
+    backgroundColor: 'rgba(139, 92, 246, 0.35)',
     borderRadius: 26,
     zIndex: -1,
   },
@@ -1125,7 +1111,7 @@ const styles = StyleSheet.create({
   loginButtonText: {
     fontSize: 17,
     fontWeight: '700' as const,
-    color: '#000',
+    color: '#fff',
   },
   forgotButton: {
     paddingVertical: 16,
@@ -1147,7 +1133,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   termsLink: {
-    color: '#00d4ff',
+    color: '#a78bfa',
   },
   welcomeOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -1169,16 +1155,16 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     borderWidth: 3,
-    borderColor: '#00d4ff',
+    borderColor: '#8b5cf6',
   },
   welcomeCheckCircle: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#00d4ff',
+    backgroundColor: '#8b5cf6',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00d4ff',
+    shadowColor: '#8b5cf6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 20,
@@ -1211,13 +1197,13 @@ const styles = StyleSheet.create({
     padding: 28,
   },
   modalContentAndroid: {
-    backgroundColor: '#0d1117',
+    backgroundColor: '#1a0a2e',
     borderRadius: 24,
     padding: 28,
     width: '100%',
     maxWidth: 380,
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 255, 0.2)',
+    borderColor: 'rgba(139, 92, 246, 0.3)',
   },
   modalHeaderGlow: {
     position: 'absolute',
@@ -1228,10 +1214,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
-  modalIconContainer: {
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
+  
   modalTitle: {
     fontSize: 24,
     fontWeight: '700' as const,
@@ -1262,14 +1245,14 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: 'rgba(0, 212, 255, 0.15)',
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepNumberText: {
     fontSize: 13,
     fontWeight: '700' as const,
-    color: '#00d4ff',
+    color: '#a78bfa',
   },
   modalStep: {
     fontSize: 14,
@@ -1277,16 +1260,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalComingSoon: {
-    backgroundColor: 'rgba(0, 212, 255, 0.1)',
+    backgroundColor: 'rgba(139, 92, 246, 0.12)',
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 255, 0.2)',
+    borderColor: 'rgba(139, 92, 246, 0.25)',
   },
   modalComingSoonText: {
     fontSize: 13,
-    color: '#00d4ff',
+    color: '#a78bfa',
     textAlign: 'center',
     fontWeight: '600' as const,
   },
@@ -1312,7 +1295,7 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: 16,
     fontWeight: '700' as const,
-    color: '#000',
+    color: '#fff',
   },
   modalCloseButton: {
     height: 44,
