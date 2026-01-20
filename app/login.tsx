@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     fontSize: 68,
     fontWeight: '800' as const,
     color: '#fafafa',
-    letterSpacing: 6,
+    letterSpacing: -3,
     marginBottom: 12,
   },
   subtitle: {
