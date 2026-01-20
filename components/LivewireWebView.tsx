@@ -161,12 +161,13 @@ export default function LivewireWebView({
       return;
     }
 
+    const trimmedEmail = emailToUse.trim();
     console.log('[LivewireWebView] ========================================');
-    console.log('[LivewireWebView] FILLING FORM WITH EMAIL:', emailToUse);
+    console.log('[LivewireWebView] FILLING FORM WITH EMAIL:', trimmedEmail);
     console.log('[LivewireWebView] ========================================');
     setHasSubmitted(true);
 
-    const safeEmail = emailToUse.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const safeEmail = trimmedEmail.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
 
     const submitScript = `
       (function() {
@@ -174,20 +175,39 @@ export default function LivewireWebView({
           var emailValue = '${safeEmail}';
           console.log('[WebView] Starting form fill with email:', emailValue);
 
-          // Find the email input field
-          var emailInput = document.querySelector('input[type="email"]') || 
-                            document.querySelector('input[name="emailAddress"]') ||
-                            document.querySelector('input[name="email"]');
+          // Find the email input field - try multiple selectors
+          var emailInput = null;
           
-          // If not found, try to find by wire:model attribute manually
+          // First try by wire:model attributes (Livewire specific)
+          var allInputs = document.querySelectorAll('input');
+          for (var i = 0; i < allInputs.length; i++) {
+            var inp = allInputs[i];
+            var wireModel = inp.getAttribute('wire:model') || 
+                            inp.getAttribute('wire:model.live') || 
+                            inp.getAttribute('wire:model.blur') ||
+                            inp.getAttribute('wire:model.lazy') ||
+                            inp.getAttribute('wire:model.debounce');
+            if (wireModel && wireModel.toLowerCase().includes('email')) {
+              emailInput = inp;
+              console.log('[WebView] Found by wire:model:', wireModel);
+              break;
+            }
+          }
+          
+          // Then try standard selectors
           if (!emailInput) {
-            var allInputs = document.querySelectorAll('input');
+            emailInput = document.querySelector('input[type="email"]') || 
+                          document.querySelector('input[name="emailAddress"]') ||
+                          document.querySelector('input[name="email"]') ||
+                          document.querySelector('input[id*="email"]') ||
+                          document.querySelector('input[placeholder*="email" i]');
+          }
+          
+          // Last resort - first text/email input
+          if (!emailInput) {
             for (var i = 0; i < allInputs.length; i++) {
-              var inp = allInputs[i];
-              if (inp.getAttribute('wire:model') === 'emailAddress' ||
-                  inp.getAttribute('wire:model.live') === 'emailAddress' ||
-                  inp.getAttribute('wire:model.blur') === 'emailAddress') {
-                emailInput = inp;
+              if (allInputs[i].type === 'text' || allInputs[i].type === 'email' || !allInputs[i].type) {
+                emailInput = allInputs[i];
                 break;
               }
             }
@@ -202,42 +222,96 @@ export default function LivewireWebView({
             return;
           }
 
-          console.log('[WebView] Found email input:', emailInput.tagName, emailInput.name || emailInput.type);
+          console.log('[WebView] Found email input:', emailInput.tagName, 'name:', emailInput.name, 'type:', emailInput.type);
           console.log('[WebView] Current value:', emailInput.value);
           console.log('[WebView] Setting to:', emailValue);
 
-          // Clear and set the email value
+          // Focus the input first
           emailInput.focus();
-          emailInput.value = '';
+          
+          // Use native value setter to bypass any framework protection
+          var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          nativeInputValueSetter.call(emailInput, emailValue);
+          
+          // Also set directly as fallback
           emailInput.value = emailValue;
           
-          // Trigger all possible events for Livewire
-          emailInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-          emailInput.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-          emailInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+          // Trigger all possible events for Livewire/Alpine.js
+          var inputEvent = new Event('input', { bubbles: true, cancelable: true });
+          emailInput.dispatchEvent(inputEvent);
+          
+          var changeEvent = new Event('change', { bubbles: true, cancelable: true });
+          emailInput.dispatchEvent(changeEvent);
+          
+          // Trigger keydown/keyup for frameworks that listen to these
+          emailInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'a' }));
+          emailInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'a' }));
+          emailInput.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true, key: 'a' }));
+          
+          // Blur to trigger wire:model.blur
           emailInput.dispatchEvent(new Event('blur', { bubbles: true }));
+          
+          // For Alpine.js / Livewire 3 - trigger x-model update
+          if (window.Alpine) {
+            window.Alpine.nextTick(function() {
+              console.log('[WebView] Alpine tick completed');
+            });
+          }
 
           console.log('[WebView] After setting - value is now:', emailInput.value);
+          
+          // Verify the email was set correctly
+          if (emailInput.value !== emailValue) {
+            console.log('[WebView] WARNING: Email value mismatch! Expected:', emailValue, 'Got:', emailInput.value);
+            // Try setting again
+            emailInput.value = emailValue;
+          }
 
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'email_set',
-            email: emailInput.value
+            email: emailInput.value,
+            expected: emailValue
           }));
 
-          // Wait a moment for Livewire to process
+          // Wait a moment for Livewire to process the input
           setTimeout(function() {
+            // Verify email is still set before submitting
+            console.log('[WebView] Pre-submit check - email value:', emailInput.value);
+            
+            if (emailInput.value !== emailValue) {
+              console.log('[WebView] Re-setting email before submit');
+              nativeInputValueSetter.call(emailInput, emailValue);
+              emailInput.value = emailValue;
+              emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+              emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            
             console.log('[WebView] Looking for submit button...');
             // Find and click the submit button
             var submitButton = document.querySelector('button[type="submit"]') ||
-                                document.querySelector('form button') ||
-                                document.querySelector('button:not([type="button"])');
+                                document.querySelector('form button:not([type="button"])') ||
+                                document.querySelector('button[wire\\:click]');
             
             // If not found, try to find by wire:click attribute manually
             if (!submitButton) {
               var allButtons = document.querySelectorAll('button');
               for (var j = 0; j < allButtons.length; j++) {
                 var btn = allButtons[j];
-                if (btn.getAttribute('wire:click') === 'submitForm') {
+                var wireClick = btn.getAttribute('wire:click');
+                if (wireClick && (wireClick.includes('submit') || wireClick.includes('Submit'))) {
+                  submitButton = btn;
+                  break;
+                }
+              }
+            }
+            
+            // Try any button that's not obviously a cancel/back button
+            if (!submitButton) {
+              var allButtons = document.querySelectorAll('button');
+              for (var j = 0; j < allButtons.length; j++) {
+                var btn = allButtons[j];
+                var text = (btn.textContent || '').toLowerCase();
+                if (!text.includes('cancel') && !text.includes('back') && !text.includes('close')) {
                   submitButton = btn;
                   break;
                 }
@@ -254,9 +328,11 @@ export default function LivewireWebView({
             }
 
             console.log('[WebView] Found submit button:', submitButton.tagName, submitButton.textContent);
+            console.log('[WebView] Final email value before click:', emailInput.value);
 
             window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'submitting'
+              type: 'submitting',
+              email: emailInput.value
             }));
 
             submitButton.click();
@@ -278,7 +354,7 @@ export default function LivewireWebView({
               }
             }, 2000);
 
-          }, 800);
+          }, 1000);
 
         } catch(e) {
           console.log('[WebView] ERROR:', e.message);
