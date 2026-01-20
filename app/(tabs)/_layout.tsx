@@ -1,5 +1,5 @@
 import { Tabs, useRouter } from "expo-router";
-import { Home, Compass, Plus, MessageCircle } from "lucide-react-native";
+import { Home, Compass, Plus, MessageCircle, User } from "lucide-react-native";
 import React, { useRef, useEffect } from "react";
 import { View, StyleSheet, TouchableOpacity, Text, Modal, Image, Animated } from "react-native";
 import { BlurView } from "expo-blur";
@@ -302,17 +302,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="marketplace"
+        name="create"
         options={{
           title: "",
-          tabBarIcon: () => (
-            <CreateButton onPress={() => setShowCreateMenu(true)} />
+          tabBarButton: () => (
+            <View style={styles.createButtonWrapper}>
+              <CreateButton onPress={() => setShowCreateMenu(true)} />
+            </View>
           ),
         }}
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
-            setShowCreateMenu(true);
           },
         }}
       />
@@ -353,6 +354,12 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  createButtonWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 4,
+  },
   plusButtonGlow: {
     position: 'absolute',
     width: 60,

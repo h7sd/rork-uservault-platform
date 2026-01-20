@@ -520,7 +520,6 @@ export default function ProfileScreen() {
           <View style={styles.heroContent}>
             <Animated.View style={[styles.avatarWrap, { transform: [{ translateY: avatarTranslateY }, { scale: avatarScale }] }]}>
               <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-              
             </Animated.View>
 
             <View style={styles.headerBlock}>
