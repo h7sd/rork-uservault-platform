@@ -1322,6 +1322,7 @@ class ApiService {
       credentials: 'include',
       headers: {
         'Accept': 'application/json',
+        'Authorization': `Bearer ${data.token}`,
       },
     });
 
