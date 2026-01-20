@@ -1300,18 +1300,33 @@ class ApiService {
     device_name: string;
   }): Promise<LoginResponse> {
     console.log('[API] verifying registration with token');
-    const url = `${this.baseUrl}/register/verify`;
+    
+    // Build query parameters for GET request
+    const params = new URLSearchParams();
+    params.append('token', data.token);
+    params.append('password', data.password);
+    params.append('password_confirmation', data.password_confirmation);
+    params.append('username', data.username);
+    params.append('first_name', data.first_name);
+    if (data.last_name) params.append('last_name', data.last_name);
+    params.append('birth_day', data.birth_day.toString());
+    params.append('birth_month', data.birth_month.toString());
+    params.append('birth_year', data.birth_year.toString());
+    params.append('gender', data.gender);
+    params.append('country', data.country);
+    if (data.city) params.append('city', data.city);
+    params.append('device_name', data.device_name);
+    
+    const url = `${this.baseUrl}/register/verify?${params.toString()}`;
     console.log('[API] FULL URL:', url);
-    console.log('[API] Method: POST');
+    console.log('[API] Method: GET');
 
     const response = await fetch(url, {
-      method: 'POST',
+      method: 'GET',
       credentials: 'include',
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
     });
 
     console.log('[API] verify response status:', response.status);
