@@ -684,6 +684,22 @@ class ApiService {
     return this.post('/timeline/post/comment/create', body);
   }
 
+  async getPostComments(postId: number, cursor: number = 0): Promise<any> {
+    console.log('[API] fetching comments for post:', postId);
+    if (!this.authToken) {
+      throw new Error('Not authenticated');
+    }
+    return this.get(`/timeline/post/${postId}/comments`, { cursor });
+  }
+
+  async likeComment(commentId: number): Promise<any> {
+    console.log('[API] liking comment:', commentId);
+    if (!this.authToken) {
+      throw new Error('Not authenticated');
+    }
+    return this.post('/timeline/post/comment/like', { comment_id: commentId });
+  }
+
   async voteOnPoll(pollId: number, choiceIndex: number): Promise<any> {
     console.log('[API] voting on poll:', pollId, 'choice:', choiceIndex);
     if (!this.authToken) {

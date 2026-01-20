@@ -23,7 +23,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import colors from '@/constants/colors';
-import { useTimelineApi, useStoriesApi, useLikePost, useCurrentUserProfile, useUnreadNotificationCount, useCreateComment } from '@/hooks/useApi';
+import { useTimelineApi, useStoriesApi, useLikePost, useCurrentUserProfile, useUnreadNotificationCount, useCreateComment, usePostCommentsApi, useLikeComment } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Story, Post } from '@/types';
 import VerifiedBadge from '@/components/VerifiedBadge';
@@ -114,20 +114,29 @@ function AnimatedStoryItem({ story, index }: { story: Story; index: number }) {
   );
 }
 
+interface CommentUser {
+  id: number;
+  username: string;
+  name?: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
+  verified?: boolean;
+}
+
 interface CommentData {
   id: number;
   content: string;
-  user: {
-    id: number;
-    username: string;
-    name: string;
-    avatar_url: string;
-    verified?: boolean;
+  user?: CommentUser;
+  relations?: {
+    user?: CommentUser;
   };
-  likes_count: number;
-  liked: boolean;
-  replies: CommentData[];
-  created_at: string;
+  likes_count?: number | { raw?: number; formatted?: string };
+  liked?: boolean;
+  replies?: CommentData[];
+  children?: CommentData[];
+  created_at?: string;
+  date?: { time_ago?: string };
   parent_id?: number;
 }
 
@@ -138,10 +147,10 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
   const [showFullscreenVideo, setShowFullscreenVideo] = useState<boolean>(false);
   const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
   const [showComments, setShowComments] = useState<boolean>(false);
-  const [comments, setComments] = useState<CommentData[]>([]);
+  const [localComments, setLocalComments] = useState<CommentData[]>([]);
   const [newComment, setNewComment] = useState<string>('');
   const [replyingTo, setReplyingTo] = useState<CommentData | null>(null);
-  const [commentsLoading, setCommentsLoading] = useState<boolean>(false);
+  const [activePostId, setActivePostId] = useState<number | null>(null);
   
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -151,8 +160,13 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
   const fullscreenVideoRef = useRef<Video>(null);
   const likeMutation = useLikePost();
   const createCommentMutation = useCreateComment();
+  const likeCommentMutation = useLikeComment();
   const router = useRouter();
   const { currentUser } = useAuth();
+  
+  const { data: commentsData, isLoading: commentsLoading, refetch: refetchComments } = usePostCommentsApi(
+    activePostId
+  );
 
   useEffect(() => {
     Animated.parallel([
@@ -273,82 +287,13 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
 
   const handleOpenComments = useCallback(() => {
     setShowComments(true);
-    setCommentsLoading(true);
-    const mockComments: CommentData[] = [
-      {
-        id: 1,
-        content: 'Nice post! 🔥',
-        user: {
-          id: 101,
-          username: 'user1',
-          name: 'John Doe',
-          avatar_url: 'https://i.pravatar.cc/150?u=user1',
-          verified: true,
-        },
-        likes_count: 12,
-        liked: false,
-        replies: [
-          {
-            id: 11,
-            content: 'Totally agree!',
-            user: {
-              id: 102,
-              username: 'user2',
-              name: 'Jane Smith',
-              avatar_url: 'https://i.pravatar.cc/150?u=user2',
-            },
-            likes_count: 3,
-            liked: false,
-            replies: [],
-            created_at: '2h ago',
-            parent_id: 1,
-          },
-        ],
-        created_at: '3h ago',
-      },
-      {
-        id: 2,
-        content: 'Love this content!',
-        user: {
-          id: 103,
-          username: 'user3',
-          name: 'Mike Johnson',
-          avatar_url: 'https://i.pravatar.cc/150?u=user3',
-        },
-        likes_count: 5,
-        liked: true,
-        replies: [],
-        created_at: '5h ago',
-      },
-    ];
-    setTimeout(() => {
-      setComments(mockComments);
-      setCommentsLoading(false);
-    }, 500);
-  }, []);
+    setActivePostId(post.id);
+    setLocalComments([]);
+  }, [post.id]);
 
   const handleLikeComment = useCallback((commentId: number) => {
-    setComments(prev => prev.map(c => {
-      if (c.id === commentId) {
-        return {
-          ...c,
-          liked: !c.liked,
-          likes_count: c.liked ? c.likes_count - 1 : c.likes_count + 1,
-        };
-      }
-      if (c.replies.length > 0) {
-        return {
-          ...c,
-          replies: c.replies.map(r => 
-            r.id === commentId 
-              ? { ...r, liked: !r.liked, likes_count: r.liked ? r.likes_count - 1 : r.likes_count + 1 }
-              : r
-          ),
-        };
-      }
-      return c;
-    }));
-  }, []);
+    likeCommentMutation.mutate(commentId);
+  }, [likeCommentMutation]);
 
   const handleReply = useCallback((comment: CommentData) => {
     setReplyingTo(comment);
@@ -373,63 +318,108 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
       parent_id: replyingTo?.id,
     };
 
-    if (replyingTo) {
-      setComments(prev => prev.map(c => {
-        if (c.id === replyingTo.id) {
-          return { ...c, replies: [...c.replies, newCommentData] };
-        }
-        return c;
-      }));
-    } else {
-      setComments(prev => [newCommentData, ...prev]);
-    }
+    setLocalComments(prev => [newCommentData, ...prev]);
 
     createCommentMutation.mutate({
       postId: post.id,
       content: newComment,
       parentId: replyingTo?.id,
+    }, {
+      onSuccess: () => {
+        refetchComments();
+      }
     });
 
     setNewComment('');
     setReplyingTo(null);
-  }, [newComment, replyingTo, currentUser, post.id, createCommentMutation]);
+  }, [newComment, replyingTo, currentUser, post.id, createCommentMutation, refetchComments]);
 
-  const renderComment = useCallback((comment: CommentData, isReply: boolean = false) => (
-    <View key={comment.id} style={[styles.commentItem, isReply && styles.replyItem]}>
-      <Image source={{ uri: comment.user.avatar_url }} style={styles.commentAvatar} cachePolicy="memory-disk" />
-      <View style={styles.commentContent}>
-        <View style={styles.commentHeader}>
-          <Text style={styles.commentUsername}>{comment.user.name}</Text>
-          {comment.user.verified && <VerifiedBadge size={12} />}
-          <Text style={styles.commentTime}>{comment.created_at}</Text>
+  const getCommentUser = useCallback((comment: CommentData): CommentUser => {
+    const u = comment.user || comment.relations?.user;
+    return {
+      id: u?.id || 0,
+      username: u?.username || 'user',
+      name: u?.name || (u?.first_name && u?.last_name ? `${u.first_name} ${u.last_name}` : u?.first_name) || u?.username || 'User',
+      avatar_url: u?.avatar_url,
+      verified: u?.verified,
+    };
+  }, []);
+
+  const getCommentLikesCount = useCallback((comment: CommentData): number => {
+    if (typeof comment.likes_count === 'number') return comment.likes_count;
+    if (typeof comment.likes_count === 'object' && comment.likes_count?.raw !== undefined) {
+      return comment.likes_count.raw;
+    }
+    return 0;
+  }, []);
+
+  const getCommentTime = useCallback((comment: CommentData): string => {
+    return comment.date?.time_ago || comment.created_at || '';
+  }, []);
+
+  const getCommentReplies = useCallback((comment: CommentData): CommentData[] => {
+    return comment.replies || comment.children || [];
+  }, []);
+
+  const normalizeAvatarUrl = useCallback((url?: string): string => {
+    if (!url) return 'https://i.pravatar.cc/150?u=default';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `https://uservault.net${url.startsWith('/') ? '' : '/'}${url}`;
+  }, []);
+
+  const handleNavigateToProfile = useCallback((username: string) => {
+    setShowComments(false);
+    router.push(`/user/${username}`);
+  }, [router]);
+
+  const renderComment = useCallback((comment: CommentData, isReply: boolean = false) => {
+    const commentUser = getCommentUser(comment);
+    const likesCount = getCommentLikesCount(comment);
+    const timeAgo = getCommentTime(comment);
+    const replies = getCommentReplies(comment);
+    const avatarUrl = normalizeAvatarUrl(commentUser.avatar_url);
+
+    return (
+      <View key={comment.id} style={[styles.commentItem, isReply && styles.replyItem]}>
+        <TouchableOpacity onPress={() => handleNavigateToProfile(commentUser.username)}>
+          <Image source={{ uri: avatarUrl }} style={styles.commentAvatar} cachePolicy="memory-disk" />
+        </TouchableOpacity>
+        <View style={styles.commentContent}>
+          <View style={styles.commentHeader}>
+            <TouchableOpacity onPress={() => handleNavigateToProfile(commentUser.username)}>
+              <Text style={styles.commentUsername}>{commentUser.name}</Text>
+            </TouchableOpacity>
+            {commentUser.verified && <VerifiedBadge size={12} />}
+            <Text style={styles.commentTime}>{timeAgo}</Text>
+          </View>
+          <Text style={styles.commentText}>{comment.content}</Text>
+          <View style={styles.commentActions}>
+            <TouchableOpacity 
+              style={styles.commentActionButton}
+              onPress={() => handleLikeComment(comment.id)}
+            >
+              <Heart 
+                size={16} 
+                color={comment.liked ? '#FF6B6B' : colors.dark.textSecondary}
+                fill={comment.liked ? '#FF6B6B' : 'none'}
+              />
+              <Text style={[styles.commentActionText, comment.liked && styles.commentActionTextActive]}>
+                {likesCount}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.commentActionButton}
+              onPress={() => handleReply(comment)}
+            >
+              <CornerDownRight size={16} color={colors.dark.textSecondary} />
+              <Text style={styles.commentActionText}>Reply</Text>
+            </TouchableOpacity>
+          </View>
+          {replies.map(reply => renderComment(reply, true))}
         </View>
-        <Text style={styles.commentText}>{comment.content}</Text>
-        <View style={styles.commentActions}>
-          <TouchableOpacity 
-            style={styles.commentActionButton}
-            onPress={() => handleLikeComment(comment.id)}
-          >
-            <Heart 
-              size={16} 
-              color={comment.liked ? '#FF6B6B' : colors.dark.textSecondary}
-              fill={comment.liked ? '#FF6B6B' : 'none'}
-            />
-            <Text style={[styles.commentActionText, comment.liked && styles.commentActionTextActive]}>
-              {comment.likes_count}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.commentActionButton}
-            onPress={() => handleReply(comment)}
-          >
-            <CornerDownRight size={16} color={colors.dark.textSecondary} />
-            <Text style={styles.commentActionText}>Reply</Text>
-          </TouchableOpacity>
-        </View>
-        {comment.replies.map(reply => renderComment(reply, true))}
       </View>
-    </View>
-  ), [handleLikeComment, handleReply]);
+    );
+  }, [handleLikeComment, handleReply, getCommentUser, getCommentLikesCount, getCommentTime, getCommentReplies, normalizeAvatarUrl, handleNavigateToProfile]);
 
   return (
     <Animated.View style={[
@@ -611,20 +601,27 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
                 <View style={styles.commentsLoading}>
                   <ActivityIndicator color={colors.dark.accent} />
                 </View>
-              ) : comments.length === 0 ? (
-                <View style={styles.noComments}>
-                  <Text style={styles.noCommentsText}>No comments yet</Text>
-                  <Text style={styles.noCommentsSubtext}>Be the first to comment!</Text>
-                </View>
-              ) : (
-                comments.map(comment => renderComment(comment))
-              )}
+              ) : (() => {
+                const apiComments: CommentData[] = commentsData?.data || [];
+                const allComments = [...localComments, ...apiComments];
+                
+                if (allComments.length === 0) {
+                  return (
+                    <View style={styles.noComments}>
+                      <Text style={styles.noCommentsText}>No comments yet</Text>
+                      <Text style={styles.noCommentsSubtext}>Be the first to comment!</Text>
+                    </View>
+                  );
+                }
+                
+                return allComments.map(comment => renderComment(comment));
+              })()}
             </ScrollView>
 
             <View style={styles.commentInputContainer}>
               {replyingTo && (
                 <View style={styles.replyingToBar}>
-                  <Text style={styles.replyingToText}>Replying to @{replyingTo.user.username}</Text>
+                  <Text style={styles.replyingToText}>Replying to @{replyingTo.user?.username || replyingTo.relations?.user?.username || 'user'}</Text>
                   <TouchableOpacity onPress={() => setReplyingTo(null)}>
                     <X size={16} color={colors.dark.textSecondary} />
                   </TouchableOpacity>
@@ -637,7 +634,7 @@ function AnimatedPostItem({ post, index }: { post: Post; index: number }) {
                 />
                 <TextInput
                   style={styles.commentInput}
-                  placeholder={replyingTo ? `Reply to @${replyingTo.user.username}...` : 'Add a comment...'}
+                  placeholder={replyingTo ? `Reply to @${replyingTo.user?.username || replyingTo.relations?.user?.username || 'user'}...` : 'Add a comment...'}
                   placeholderTextColor={colors.dark.textSecondary}
                   value={newComment}
                   onChangeText={setNewComment}
