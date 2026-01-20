@@ -114,33 +114,52 @@ export default function LoginScreen() {
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(0.8)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
   const passwordFieldOpacity = useRef(new Animated.Value(0)).current;
+  const formSlide = useRef(new Animated.Value(40)).current;
 
   useEffect(() => {
     Animated.sequence([
-      Animated.timing(logoOpacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
+      Animated.parallel([
+        Animated.timing(logoOpacity, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(logoScale, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]),
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 350,
+          duration: 500,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
-        Animated.timing(slideAnim, {
+        Animated.spring(slideAnim, {
           toValue: 0,
-          duration: 350,
-          easing: Easing.out(Easing.quad),
+          friction: 10,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+        Animated.spring(formSlide, {
+          toValue: 0,
+          friction: 10,
+          tension: 45,
+          delay: 100,
           useNativeDriver: true,
         }),
       ]),
     ]).start();
-  }, [fadeAnim, slideAnim, logoOpacity]);
+  }, [fadeAnim, slideAnim, logoOpacity, logoScale, formSlide]);
 
   useEffect(() => {
     if (loginOrEmail.trim().length > 0 && !showPasswordField) {
@@ -250,9 +269,12 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0a0612', '#0d0918', '#0a0612']}
+        colors={['#0a0a1a', '#12082a', '#1a0a2e', '#0d061a']}
+        locations={[0, 0.3, 0.7, 1]}
         style={styles.gradientBackground}
       />
+      <View style={styles.glowOrb} />
+      <View style={styles.glowOrbSecondary} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -263,8 +285,10 @@ export default function LoginScreen() {
           style={styles.content}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <Animated.View style={[styles.headerSection, { opacity: logoOpacity }]}>
-            <Text style={styles.uvLogo}>UV</Text>
+          <Animated.View style={[styles.headerSection, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
+            <View style={styles.logoGlow}>
+              <Text style={styles.uvLogo}>UV</Text>
+            </View>
             <Animated.View
               style={{
                 opacity: fadeAnim,
@@ -281,7 +305,7 @@ export default function LoginScreen() {
               styles.formSection,
               {
                 opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
+                transform: [{ translateY: formSlide }],
               },
             ]}
           >
@@ -560,10 +584,28 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0612',
+    backgroundColor: '#080510',
   },
   gradientBackground: {
     ...StyleSheet.absoluteFillObject,
+  },
+  glowOrb: {
+    position: 'absolute',
+    top: -100,
+    left: -50,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+  },
+  glowOrbSecondary: {
+    position: 'absolute',
+    bottom: -50,
+    right: -80,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
   },
   scrollContent: {
     flexGrow: 1,
@@ -578,40 +620,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 56,
   },
-  uvLogo: {
-    fontSize: 72,
-    fontWeight: '200' as const,
-    color: '#a78bfa',
-    letterSpacing: 12,
+  logoGlow: {
     marginBottom: 20,
   },
+  uvLogo: {
+    fontSize: 80,
+    fontWeight: '700' as const,
+    color: '#a78bfa',
+    letterSpacing: 8,
+    textShadowColor: 'rgba(139, 92, 246, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 30,
+  },
   title: {
-    fontSize: 12,
-    fontWeight: '500' as const,
-    color: '#6b7280',
-    letterSpacing: 4,
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: '#9ca3af',
+    letterSpacing: 6,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#4b5563',
-    marginTop: 6,
+    fontSize: 15,
+    fontWeight: '500' as const,
+    color: '#6b7280',
+    marginTop: 8,
     textAlign: 'center',
   },
   formSection: {
     gap: 12,
   },
   createAccountButton: {
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
-    height: 50,
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
+    height: 54,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
   },
   createAccountText: {
-    fontSize: 14,
-    fontWeight: '500' as const,
+    fontSize: 15,
+    fontWeight: '600' as const,
     color: '#a78bfa',
   },
   dividerContainer: {
@@ -625,8 +675,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   dividerText: {
-    color: '#4b5563',
-    fontSize: 12,
+    color: '#6b7280',
+    fontSize: 13,
+    fontWeight: '500' as const,
     marginHorizontal: 14,
   },
   errorContainer: {
@@ -636,27 +687,32 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#ef4444',
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '500' as const,
     textAlign: 'center',
   },
   inputGroup: {
     marginBottom: 4,
   },
   inputWrapper: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   inputWrapperFocused: {
-    backgroundColor: 'rgba(124, 58, 237, 0.06)',
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    borderColor: 'rgba(139, 92, 246, 0.3)',
   },
   input: {
     flex: 1,
-    height: 50,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: '#e5e7eb',
+    height: 54,
+    paddingHorizontal: 18,
+    fontSize: 16,
+    fontWeight: '500' as const,
+    color: '#f3f4f6',
   },
   passwordInput: {
     paddingRight: 50,
@@ -667,28 +723,30 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   loginButton: {
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
-    marginTop: 8,
+    marginTop: 12,
   },
   loginButtonGradient: {
-    height: 50,
+    height: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   loginButtonText: {
-    fontSize: 15,
-    fontWeight: '600' as const,
+    fontSize: 16,
+    fontWeight: '700' as const,
     color: '#fff',
+    letterSpacing: 0.5,
   },
   forgotButton: {
     paddingVertical: 14,
     alignItems: 'center',
   },
   forgotLink: {
-    fontSize: 13,
-    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#8b5cf6',
   },
   footer: {
     marginTop: 'auto',
@@ -722,14 +780,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   welcomeTitle: {
-    fontSize: 22,
-    fontWeight: '300' as const,
-    color: '#e5e7eb',
-    marginBottom: 4,
+    fontSize: 26,
+    fontWeight: '700' as const,
+    color: '#f3f4f6',
+    marginBottom: 6,
   },
   welcomeUsername: {
-    fontSize: 15,
-    color: '#6b7280',
+    fontSize: 16,
+    fontWeight: '500' as const,
+    color: '#a78bfa',
   },
   modalOverlay: {
     flex: 1,
@@ -755,17 +814,18 @@ const styles = StyleSheet.create({
     maxWidth: 340,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '500' as const,
-    color: '#e5e7eb',
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#f3f4f6',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   modalText: {
-    fontSize: 13,
-    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: '#9ca3af',
     textAlign: 'center',
-    lineHeight: 19,
+    lineHeight: 20,
     marginBottom: 18,
   },
   modalSteps: {
