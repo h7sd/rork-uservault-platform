@@ -219,12 +219,22 @@ function getPostPreviewUrl(post: Post): string | null {
   if (mediaType === 'VIDEO') {
     mediaUrl = firstMedia?.thumbnail_url;
     console.log('[Profile] video detected, using thumbnail:', mediaUrl);
+    if (!mediaUrl) {
+      console.log('[Profile] ✗ Video has no thumbnail, skipping');
+      return null;
+    }
   } else {
     mediaUrl = firstMedia?.source_url || firstMedia?.thumbnail_url;
     console.log('[Profile] image/other media, using source_url:', mediaUrl);
   }
   
   if (typeof mediaUrl === 'string' && mediaUrl.length > 0) {
+    const lowerUrl = mediaUrl.toLowerCase();
+    if (lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.mov') || lowerUrl.endsWith('.webm') || lowerUrl.endsWith('.avi')) {
+      console.log('[Profile] ✗ URL is a video file, cannot use as image:', mediaUrl);
+      return null;
+    }
+    
     if (!mediaUrl.startsWith('http://') && !mediaUrl.startsWith('https://')) {
       mediaUrl = `https://uservault.net${mediaUrl.startsWith('/') ? '' : '/'}${mediaUrl}`;
       console.log('[Profile] converted to absolute URL:', mediaUrl);
