@@ -709,8 +709,9 @@ const styles = StyleSheet.create({
     color: '#a1a1aa',
   },
   footer: {
-    marginTop: 'auto',
+    marginTop: 32,
     paddingTop: 24,
+    paddingBottom: 40,
   },
   termsText: {
     fontSize: 11,
